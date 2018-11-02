@@ -9,6 +9,4 @@
 
 		<node name="robot_control2" pkg="tejas" type="robot_control2" args="0.01" output="screen"/>
 
-		<!--node name="drink_motion" pkg="tejas" type="drink_motion" output="screen"/-->
-
 </launch>

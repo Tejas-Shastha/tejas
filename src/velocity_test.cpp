@@ -18,7 +18,7 @@ void poseGrabber(geometry_msgs::PoseStamped::ConstPtr pose)
   current_pose.pose.orientation.y = pose->pose.orientation.y;
   current_pose.pose.orientation.z = pose->pose.orientation.z;
   pose_lock.unlock();
-  ROS_INFO_STREAM("Got current pose as x=" << pose->pose.position.x << " saved as " << current_pose.pose.position.x);
+  //ROS_INFO_STREAM("Got current pose as x=" << pose->pose.position.x << " saved as " << current_pose.pose.position.x);
 }
 
 
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     pose_lock.lock();
     temp_pose.pose.position.x = current_pose.pose.position.x;
     pose_lock.unlock();
-    ROS_INFO_STREAM(" Temp pose x = " << temp_pose.pose.position.x);
+    //ROS_INFO_STREAM(" Temp pose x = " << temp_pose.pose.position.x);
 
     ros::spinOnce();
     loop_rate.sleep();

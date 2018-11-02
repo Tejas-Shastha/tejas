@@ -34,6 +34,12 @@ target_link_libraries(velocity_test
 		${catkin_LIBRARIES}
 )
 
+add_executable(position_test src/position_test.cpp)
+add_dependencies(position_test ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(position_test
+		${catkin_LIBRARIES}
+)
+
 add_executable(robot_control2 src/robot_control.cpp)
 add_dependencies(robot_control2 ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(robot_control2
