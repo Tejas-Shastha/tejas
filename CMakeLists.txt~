@@ -1,0 +1,41 @@
+cmake_minimum_required(VERSION 2.8.3)
+project(tejas)
+
+add_compile_options(-std=c++11 -O3 -DUSE_AVX_INSTRUCTIONS=ON -fopenmp) # -DCMAKE_BUILD_TYPE=Release
+# add_compile_options(-std=c++11)
+
+## Find catkin macros and libraries
+## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+## is used, also find other catkin packages
+find_package(catkin REQUIRED COMPONENTS
+	std_msgs
+	roscpp
+	sensor_msgs
+	geometry_msgs
+	message_generation
+	tf
+)
+
+
+catkin_package(
+		CATKIN_DEPENDS
+		message_runtime
+		actionlib_msgs
+)
+
+
+include_directories(
+	${catkin_INCLUDE_DIRS}
+)
+
+add_executable(drink_motion src/drink_motion.cpp)
+add_dependencies(drink_motion ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(drink_motion
+		${catkin_LIBRARIES}
+)
+
+add_executable(robot_control2 src/robot_control.cpp)
+add_dependencies(robot_control2 ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(robot_control2
+		${catkin_LIBRARIES}
+)

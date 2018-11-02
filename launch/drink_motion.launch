@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+
+	   <include file="$(find kinova_bringup)/launch/kinova_robot.launch">
+        <arg name="kinova_robotType" value="j2s7s300" />
+        <arg name="use_urdf" value="true" />
+				<arg name="output" value="screen" />
+    </include>
+
+		<node name="robot_control2" pkg="tejas" type="robot_control2" args="0.01" output="screen"/>
+
+		<!--node name="drink_motion" pkg="tejas" type="drink_motion" output="screen"/-->
+
+</launch>
