@@ -16,7 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
 	tf
 )
 
-
 catkin_package(
 		CATKIN_DEPENDS
 		message_runtime
@@ -27,6 +26,7 @@ catkin_package(
 include_directories(
 	${catkin_INCLUDE_DIRS}
 )
+
 
 add_executable(velocity_test src/velocity_test.cpp)
 add_dependencies(velocity_test ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
@@ -43,5 +43,17 @@ target_link_libraries(position_test
 add_executable(robot_control2 src/robot_control.cpp)
 add_dependencies(robot_control2 ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(robot_control2
+		${catkin_LIBRARIES}
+)
+
+add_executable(force_reader src/force_reader.cpp)
+add_dependencies(force_reader ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(force_reader
+		${catkin_LIBRARIES}
+)
+
+add_executable(tf_caster src/tf_caster.cpp)
+add_dependencies(tf_caster ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(tf_caster
 		${catkin_LIBRARIES}
 )

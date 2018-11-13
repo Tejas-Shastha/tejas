@@ -22,7 +22,6 @@
 	<build_export_depend>std_msgs roscpp</build_export_depend>
 	<exec_depend>std_msgs roscpp</exec_depend>
 
-
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
