@@ -79,8 +79,6 @@ int main(int argc, char **argv)
 
   //// WORKING: Make a translation WRT end effector frame
   success = false;
-  int seq=0;
-  geometry_msgs::PoseStamped goal_pose;
   while(!success)
   {
     try
@@ -137,47 +135,6 @@ int main(int argc, char **argv)
   lock_pose.unlock();
   ROS_INFO_STREAM("End pose :" << start_pose);
 
-
-
-  /// WORKING :: ORIGINAL CODE FOR SIMPLE POSITION COMMAND
-  /*lock_pose.lock();
-  start_pose=current_pose;
-  lock_pose.unlock();
-  ROS_INFO_STREAM("Start pos : " << start_pose.pose.position.x);
-
-  geometry_msgs::PoseStamped goal_pose = start_pose;
-  goal_pose.pose.position.x-=0.05;
-  goal_pose.pose.position.y-=0.05;
-  goal_pose.pose.position.z-=0.05;
-
-  ROS_INFO_STREAM("Publishing goal pose ");
-  cmd_pos.publish(goal_pose);
-
-  std::string temp_res;
-  while(ros::ok())
-  {
-    ros::spinOnce();
-    lock_status.lock();
-    temp_res = result;
-    lock_status.unlock();
-    if (temp_res!="") break;
-  }
-  ROS_INFO_STREAM("Goal status available : " << temp_res);
-  ros::Duration sleeper(0.5);
-  ros::Time start = ros::Time::now();
-  while(ros::Time::now()-start < sleeper)
-  {
-    ros::spinOnce();
-  }
-
-
-  lock_pose.lock();
-  geometry_msgs::PoseStamped end_pose = current_pose;
-  lock_pose.unlock();
-
-
-  ROS_INFO_STREAM("End pos : " << end_pose.pose.position.x);
-  ROS_INFO_STREAM("Total displacement x : " << -start_pose.pose.position.x + end_pose.pose.position.x);*/
 
   ros::spinOnce();
   return 0;
