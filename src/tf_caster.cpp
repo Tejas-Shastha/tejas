@@ -7,7 +7,11 @@
 #include <actionlib/client/simple_action_client.h>
 #include <kinova_msgs/PoseVelocity.h>
 
-geometry_msgs::PoseStamped current_pose, start_pose, pose_in_end_effector;
+#define END_EFF_FRAME "j2s7s300_end_effector"
+#define BASE_FRAME "j2s7s300_link_base"
+#define SENSOR_FRAME "forcesensor"
+
+geometry_msgs::PoseStamped current_pose, start_pose, pose_in_end_effector, pose_in_sensor;
 std::string result;
 std::mutex lock_pose;
 std::mutex lock_status;
@@ -54,9 +58,6 @@ int main(int argc, char **argv)
   ros::Rate loop_rate(9);
   geometry_msgs::PoseStamped temp_pose;
 
-  std::string end_eff_frame = tf_listener.resolve("j2s7s300_end_effector");
-  std::string base_frame = tf_listener.resolve("j2s7s300_link_base");
-
   // This loop to wait until subscriber starts returning valid poses.
   while(ros::ok())
   {
@@ -84,10 +85,15 @@ int main(int argc, char **argv)
       start_pose=current_pose;
       lock_pose.unlock();
 
-      tf_listener.transformPose(end_eff_frame,start_pose,pose_in_end_effector);
+
+      //tf_listener.transformPose(END_EFF_FRAME,start_pose, pose_in_end_effector);
+      tf_listener.transformPose(SENSOR_FRAME,start_pose, pose_in_sensor);
+
+
       success = true;
       ROS_INFO_STREAM("Current pose in base frame is :" << start_pose);
-      ROS_INFO_STREAM("Current pose in end effector frame is :" << pose_in_end_effector);
+      //ROS_INFO_STREAM("Current pose in end effector frame is :" << pose_in_end_effector);
+      ROS_INFO_STREAM("Current pose in sensor frame is :" << pose_in_sensor);
 
     } catch (tf::ExtrapolationException e)
     {

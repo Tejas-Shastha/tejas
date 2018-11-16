@@ -15,19 +15,10 @@ std::string result;
 std::mutex lock_pose;
 std::mutex lock_status;
 
-void poseGrabber(geometry_msgs::PoseStamped::ConstPtr pose)
+void poseGrabber(geometry_msgs::PoseStamped pose)
 {
   lock_pose.lock();
-  current_pose.pose.position.x = pose->pose.position.x;
-  current_pose.pose.position.y = pose->pose.position.y;
-  current_pose.pose.position.z = pose->pose.position.z;
-  current_pose.pose.orientation.w = pose->pose.orientation.w;
-  current_pose.pose.orientation.x = pose->pose.orientation.x;
-  current_pose.pose.orientation.y = pose->pose.orientation.y;
-  current_pose.pose.orientation.z = pose->pose.orientation.z;
-  current_pose.header.frame_id=pose->header.frame_id;
-  current_pose.header.seq=pose->header.seq;
-  current_pose.header.stamp=pose->header.stamp;
+  current_pose=pose;
   lock_pose.unlock();
   /*ROS_INFO_STREAM("--------------------------------");
   ROS_INFO_STREAM("--------------------------------");
