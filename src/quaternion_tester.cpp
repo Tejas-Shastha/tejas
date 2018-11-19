@@ -46,12 +46,6 @@ int main(int argc, char **argv)
     geometry_msgs::Quaternion q_orig, q_rot, q_new;
     tf::Quaternion q_temp;
 
-    q_orig.x=0;
-    q_orig.y=0;
-    q_orig.z=0;
-    q_orig.w=1;
-
-
     // ORIGINAL
     q_temp.setRPY(angles::from_degrees(60),angles::from_degrees(0),angles::from_degrees(0));
     tf::quaternionTFToMsg(q_temp,q_orig);
@@ -70,6 +64,8 @@ int main(int argc, char **argv)
     getRPYFromQuaternionMSG(q_rot, rot_rol, rot_pit, rot_yaw);
     getRPYFromQuaternionMSG(q_new, new_rol, new_pit, new_yaw);
 
+    ROS_INFO("TEST QUATERNION MULTIPLICATION");
+
     printQuat(q_orig,"Q_orig");
     printRPY(orig_rol,orig_pit,orig_yaw,"Q_orig");
 
@@ -78,6 +74,25 @@ int main(int argc, char **argv)
 
     printQuat(q_new,"Q_new");
     printRPY(new_rol, new_pit, new_yaw, "Q_new");
+
+
+    ROS_INFO("-------------------------------------------------------------------------------");
+    ROS_INFO("-------------------------------------------------------------------------------");
+    ROS_INFO("REDO TEST WITH RPY ADDITION");
+
+    // NOTE : This is NOT a rotation. This is simply adding RPY.
+    new_rol=orig_rol+rot_rol;
+    new_pit=orig_pit+rot_pit;
+    new_yaw=orig_yaw+rot_yaw;
+
+
+    q_temp.setRPY(new_rol, new_pit, new_yaw);
+    tf::quaternionTFToMsg(q_temp, q_new);
+
+    printQuat(q_new,"Q_new");
+    printRPY(new_rol, new_pit, new_yaw, "Q_new");
+
+
 
     ros::spinOnce();
 
