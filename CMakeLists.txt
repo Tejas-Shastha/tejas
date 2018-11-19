@@ -51,3 +51,8 @@ target_link_libraries(tf_caster	${catkin_LIBRARIES})
 add_executable(velocity_drive src/velocity_drive.cpp)
 add_dependencies(velocity_drive ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(velocity_drive ${catkin_LIBRARIES})
+
+add_executable(quaternion_tester src/quaternion_tester.cpp)
+add_dependencies(quaternion_tester ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(quaternion_tester ${catkin_LIBRARIES})
+
