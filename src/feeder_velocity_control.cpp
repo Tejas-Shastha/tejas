@@ -18,15 +18,18 @@
 #define ARC_UP 2
 #define TRANSLATE_BACK 3
 #define ROTATE_DOWN 4
+#define TRANSLATE_UP 5
+#define TRANSLATE_DOWN 6
+#define TRANSLATE_FRONT 7
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_TRIGGER_THRESH 0.5
-#define FORCE_B_TRIGGER_THRESH 0.5
-#define FORCE_F_PAIN_THRESH 1
-#define FORCE_B_PAIN_THRESH 1
+#define FORCE_F_TRIGGER_THRESH 0.4
+#define FORCE_B_TRIGGER_THRESH 0.4
+#define FORCE_F_PAIN_THRESH 2.5
+#define FORCE_B_PAIN_THRESH 2.5
 #define ROTATION_STEP 10
-#define MAX_STEPS 2
+#define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
@@ -46,7 +49,7 @@ bool processing=false;
 ros::Publisher cmd_pos;
 ros::Publisher cmd_vel;
 geometry_msgs::PoseStamped current_pose, initial_pose;
-int current_step=0;
+
 
 
 void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll,double& pitch, double& yaw)
@@ -56,10 +59,8 @@ void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll
   quat.normalize();
   tf::Matrix3x3 mat(quat);
   mat.getRPY(roll, pitch,yaw);
-
-  //ROS_INFO_STREAM("Quaternion is : " << quat.x() << " " << quat.y() << " " << quat.z() << " " << quat.w());
-  //ROS_INFO_STREAM("Converted R: " << roll << " P: " << pitch << " Y: " << yaw);
 }
+
 
 void waitForActionCompleted()
 {
@@ -74,16 +75,16 @@ void waitForActionCompleted()
     if (temp_res=="Stopped")
     {
       ROS_INFO_STREAM("Status : " << temp_res);
-      //Wait 1.5s extra for arm to settle due to inertia.
+      //Wait a little extra for arm to settle due to inertia.
       ros::Time start = ros::Time::now();
-      while(ros::Time::now()-start < ros::Duration(1.5)) ros::spinOnce();
+      while(ros::Time::now()-start < ros::Duration(0.2)) ros::spinOnce();
       break;
     }
   }
 }
 
 
-void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose)
+void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,double  distance)
 {
   geometry_msgs::Quaternion quat;
   switch(direction)
@@ -110,7 +111,15 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose)
     start_pose.header.frame_id=END_EFF_FRAME;
     start_pose.pose.position.x=0;
     start_pose.pose.position.y=0;
-    start_pose.pose.position.z=-0.1;
+    start_pose.pose.position.z=-distance;
+    start_pose.pose.orientation = quat;
+    break;
+  case TRANSLATE_FRONT :
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(0),angles::from_degrees(0),angles::from_degrees(0));
+    start_pose.header.frame_id=END_EFF_FRAME;
+    start_pose.pose.position.x=0;
+    start_pose.pose.position.y=0;
+    start_pose.pose.position.z=distance;
     start_pose.pose.orientation = quat;
     break;
 
@@ -131,18 +140,33 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
       twist.twist.linear.z=VEL_LIN_MAX;
       twist.twist.angular.x=VEL_ANG_MAX;
     break;
+
     case ARC_UP:
       ROS_INFO("Arc up");
       twist.twist.linear.z=-VEL_LIN_MAX;
       twist.twist.angular.x=-VEL_ANG_MAX;
     break;
+
     case TRANSLATE_BACK:
       ROS_INFO("Translate back");
       twist.twist.linear.x=-VEL_LIN_MAX;
     break;
+
     case ROTATE_DOWN:
       ROS_INFO("Rotate down");
       twist.twist.angular.x=VEL_ANG_MAX;
+    break;
+
+    case TRANSLATE_UP:
+      ROS_INFO("Translate up");
+      twist.twist.linear.z=VEL_LIN_MAX;
+    break;
+
+    case TRANSLATE_DOWN:
+      ROS_INFO("Translate down");
+      twist.twist.linear.z=-VEL_LIN_MAX;
+    break;
+
   }
   return twist;
 }
@@ -167,11 +191,19 @@ void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double durat
   while (ros::Time::now() - time_start < ros::Duration(duration))
   {
     ros::spinOnce();
-    cmd_vel.publish(twist_msg);
+    if(isForceSafe())
+    {
+      cmd_vel.publish(twist_msg);
+    }
+    else
+    {
+      ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+      break;
+    }
   }
 }
 
-void positionControlDriveForDirection(int direction)
+void positionControlDriveForDirection(int direction, double distance)
 {
   geometry_msgs::PoseStamped start_pose, pose_in_base;
   tf::TransformListener tf_listener;
@@ -187,7 +219,7 @@ void positionControlDriveForDirection(int direction)
       start_pose = current_pose;
       lock_pose.unlock();
 
-      setPoseForDirection(direction, start_pose);
+      setPoseForDirection(direction, start_pose, distance);
 
       tf_listener.transformPose(BASE_FRAME,start_pose,pose_in_base);
       break;
@@ -206,37 +238,28 @@ void positionControlDriveForDirection(int direction)
   cmd_pos.publish(pose_in_base);
 }
 
-void moveCup(int direction, double duration=VEL_CMD_DURATION)
+void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.1)
 {
-  ROS_INFO("Calling moveCup");
-  if (direction!=TRANSLATE_BACK)
+  //ROS_INFO_STREAM("Calling moveCup. Direction : " << direction << " Duration : " << duration << " Distance: " << distance);
+  if (direction==TRANSLATE_BACK || direction==TRANSLATE_FRONT)
   {
-    geometry_msgs::TwistStamped twist_msg = getTwistForDirection(direction);
-    publishTwistForDuration(twist_msg, duration);
+    positionControlDriveForDirection(direction, distance);
+    return;
   }
   else
   {
-    positionControlDriveForDirection(direction);
+    geometry_msgs::TwistStamped twist_msg = getTwistForDirection(direction);
+    publishTwistForDuration(twist_msg, duration);
+
   }
   return;
 }
 
-void fallBack(int& current_step)
+void fallBack(geometry_msgs::PoseStamped initial_pose)
 {
-  while(current_step < 0)
-  {
-    moveCup(ARC_UP);
-    current_step++;
-  }
-  while(current_step > 0)
-  {
-    moveCup(ARC_DOWN);
-    current_step--;
-  }
-  if (current_step==0)
-  {
-    moveCup(TRANSLATE_BACK);
-  }
+  cmd_pos.publish(initial_pose);
+  waitForActionCompleted();
+  moveCup(TRANSLATE_BACK);
 }
 
 
@@ -319,39 +342,25 @@ int main(int argc, char **argv)
 
     if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH)
     {
-      if(current_step < -MAX_STEPS)
-      {
-        ROS_WARN_STREAM("Max lower steps of " << MAX_STEPS << " reached.");
-      }
-      else
-      {
-        moveCup(ARC_DOWN);
-        current_step--;
-      }
+      moveCup(ARC_DOWN);
+      moveCup(TRANSLATE_UP, VEL_CMD_DURATION/5);
       print_once_only=true;
     }
     else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH)
     {
-      if (current_step > MAX_STEPS/2)
-      {
-        ROS_WARN_STREAM("Max upper steps of " << MAX_STEPS/2 << " reached.");
-      }
-      else
-      {
-        moveCup(ARC_UP);
-        current_step++;
-      }
+      moveCup(ARC_UP);
+      moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/5);
       print_once_only=true;
     }
     else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
     {
-      fallBack(current_step);
+      fallBack(initial_pose);
       ROS_WARN("Closing node");
       break;
     }
     else if (print_once_only)
     {
-      ROS_INFO_STREAM("Do nothing. Current step : " << current_step);
+      ROS_INFO_STREAM("Do nothing.");
       print_once_only=false;
     }
 
