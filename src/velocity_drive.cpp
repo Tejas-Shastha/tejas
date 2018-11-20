@@ -85,13 +85,14 @@ int main(int argc, char **argv)
   double roll, pitch, yaw;
   getRPYFromQuaternionMSG(goal_pose.pose.orientation,roll,pitch,yaw);
 
-  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees(20),angles::from_degrees(20),angles::from_degrees(20)); // Rotate about x by 20 degrees
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees(20),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
   tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
   tf::Quaternion q_goal = q_start*q_rot;
 
   goal_pose.pose.position.x+=0.0;
   goal_pose.pose.position.y+=0.0;
   goal_pose.pose.position.z+=0.0;
+
   tf::quaternionTFToMsg(q_goal,goal_pose.pose.orientation);
 
 
@@ -101,7 +102,7 @@ int main(int argc, char **argv)
 
 
   ros::Time start = ros::Time::now();
-  while(ros::ok())
+ /* while(ros::ok())
   {
     pose_lock.lock();
     temp_pose = current_pose;
@@ -112,11 +113,10 @@ int main(int argc, char **argv)
     float delta_lin_z = goal_pose.pose.position.z - temp_pose.pose.position.z;
 
 
-
-
     getRPYFromQuaternionMSG(goal_pose.pose.orientation, goal_rol, goal_pit, goal_yaw);
     getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
     getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
+
     del_rol = goal_rol - temp_rol;
     del_pit = goal_pit - temp_pit;
     del_yaw = goal_yaw - temp_yaw;
@@ -141,20 +141,21 @@ int main(int argc, char **argv)
     //      //pub_kinova_vel.publish(kinova_vel);
     //    }
     //    else
-    if (std::fabs(del_rol)>=thresh_ang)
-    {
-      kinova_msgs::PoseVelocity kinova_vel;
-      kinova_vel.twist_linear_x=  0;
-      kinova_vel.twist_linear_y=  0;
-      kinova_vel.twist_linear_z=  0;
-      kinova_vel.twist_angular_x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
-      kinova_vel.twist_angular_y= 0;
-      kinova_vel.twist_angular_z= 0;
-      ROS_INFO_STREAM("Deltas_ang MAINX: " << del_rol << " Y: " << del_pit << " Z: " << del_yaw);
-      //std::cout << (kinova_vel) << std::endl;
-      pub_kinova_vel.publish(kinova_vel);
-    }
-    else if (std::fabs(del_pit)>=thresh_ang)
+//    if (std::fabs(del_rol)>=thresh_ang)
+//    {
+//      kinova_msgs::PoseVelocity kinova_vel;
+//      kinova_vel.twist_linear_x=  0;
+//      kinova_vel.twist_linear_y=  0;
+//      kinova_vel.twist_linear_z=  0;
+//      kinova_vel.twist_angular_x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+//      kinova_vel.twist_angular_y= 0;
+//      kinova_vel.twist_angular_z= 0;
+//      ROS_INFO_STREAM("Deltas_ang MAINX: " << del_rol << " Y: " << del_pit << " Z: " << del_yaw);
+//      //std::cout << (kinova_vel) << std::endl;
+//      pub_kinova_vel.publish(kinova_vel);
+//    }
+//    else
+      if (std::fabs(del_pit)>=thresh_ang)
     {
       kinova_msgs::PoseVelocity kinova_vel;
       kinova_vel.twist_linear_x=  0;
@@ -167,29 +168,30 @@ int main(int argc, char **argv)
       //std::cout << (kinova_vel) << std::endl;
       pub_kinova_vel.publish(kinova_vel);
     }
-    else if (std::fabs(del_yaw)>=thresh_ang)
-    {
-      kinova_msgs::PoseVelocity kinova_vel;
-      kinova_vel.twist_linear_x=  0;
-      kinova_vel.twist_linear_y=  0;
-      kinova_vel.twist_linear_z=  0;
-      kinova_vel.twist_angular_x= 0;
-      kinova_vel.twist_angular_y= 0;
-      kinova_vel.twist_angular_z= del_yaw>0?VEL_ANG_MAX:-VEL_ANG_MAX;
-      ROS_INFO_STREAM("Deltas_ang X: " << del_rol << " Y: " << del_pit << " MAINZ: " << del_yaw);
-      //std::cout << (kinova_vel) << std::endl;
-      pub_kinova_vel.publish(kinova_vel);
-    }
+//    else
+//        if (std::fabs(del_yaw)>=thresh_ang)
+//    {
+//      kinova_msgs::PoseVelocity kinova_vel;
+//      kinova_vel.twist_linear_x=  0;
+//      kinova_vel.twist_linear_y=  0;
+//      kinova_vel.twist_linear_z=  0;
+//      kinova_vel.twist_angular_x= 0;
+//      kinova_vel.twist_angular_y= 0;
+//      kinova_vel.twist_angular_z= del_yaw>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+//      ROS_INFO_STREAM("Deltas_ang X: " << del_rol << " Y: " << del_pit << " MAINZ: " << del_yaw);
+//      //std::cout << (kinova_vel) << std::endl;
+//      pub_kinova_vel.publish(kinova_vel);
+//    }
     else
       break;
 
     ros::spinOnce();
     loop_rate.sleep();
-  }
+  }*/
 
 
-  ROS_INFO_STREAM("Start angles R: " << start_rol << " P: " << start_pit << " Y: " << start_yaw);
-  ROS_INFO_STREAM("goal angles R: " << goal_rol << " P: " << goal_pit << " Y: " << goal_yaw);
+  ROS_INFO_STREAM("Start angles R: " << angles::to_degrees(start_rol) << " P: " << angles::to_degrees(start_pit) << " Y: " << angles::to_degrees(start_yaw));
+  ROS_INFO_STREAM("goal angles R: " << angles::to_degrees(goal_rol) << " P: " << angles::to_degrees(goal_pit) << " Y: " << angles::to_degrees(goal_yaw));
 
   ros::spinOnce();
   return 0;

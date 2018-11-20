@@ -40,9 +40,13 @@ add_executable(robot_control2 src/robot_control.cpp)
 add_dependencies(robot_control2 ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(robot_control2 ${catkin_LIBRARIES})
 
-add_executable(force_reader src/force_reader.cpp)
-add_dependencies(force_reader ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(force_reader	${catkin_LIBRARIES})
+add_executable(feeder_position_control src/feeder_position_control.cpp)
+add_dependencies(feeder_position_control ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_position_control	${catkin_LIBRARIES})
+
+add_executable(feeder_velocity_control src/feeder_velocity_control.cpp)
+add_dependencies(feeder_velocity_control ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_velocity_control	${catkin_LIBRARIES})
 
 add_executable(tf_caster src/tf_caster.cpp)
 add_dependencies(tf_caster ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
