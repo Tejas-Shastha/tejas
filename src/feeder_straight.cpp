@@ -33,6 +33,8 @@
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
+#define UPPER_FEED_ANGLE_THRESH 140
+#define LOWER_FEED_ANGLE_THRESH 95
 
 float thresh_lin = 0.01;
 float thresh_ang = 0.15;
@@ -305,6 +307,50 @@ void waitForPoseDataAvailable()
   ROS_INFO("Pose data available");
 }
 
+bool checkUpperAngleThreshold()
+{
+  geometry_msgs::PoseStamped temp_pose;
+
+  lock_pose.lock();
+  temp_pose=current_pose;
+  lock_pose.unlock();
+
+  double temp_roll, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
+
+  if ( angles::to_degrees(temp_roll) > UPPER_FEED_ANGLE_THRESH )
+  {
+    ROS_WARN_STREAM("MAX UPPER FEED ANGLE REACHED");
+    return false;
+  }
+  else
+  {
+   return true;
+  }
+}
+
+bool checkLowerAngleThreshold()
+{
+  geometry_msgs::PoseStamped temp_pose;
+
+  lock_pose.lock();
+  temp_pose=current_pose;
+  lock_pose.unlock();
+
+  double temp_roll, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
+
+  if (angles::to_degrees(temp_roll) < LOWER_FEED_ANGLE_THRESH )
+  {
+    ROS_WARN_STREAM("MAX LOWER FEED ANGLE REACHED");
+    return false;
+  }
+  else
+  {
+   return true;
+  }
+}
+
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_straight");
@@ -340,13 +386,13 @@ int main(int argc, char **argv)
     local_force_f=force_b;
     lock_force.unlock();
 
-    if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH)
+    if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH && checkUpperAngleThreshold())
     {
       moveCup(ARC_DOWN);
       moveCup(TRANSLATE_UP, VEL_CMD_DURATION/5);
       print_once_only=true;
     }
-    else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH)
+    else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH && checkLowerAngleThreshold())
     {
       moveCup(ARC_UP);
       moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/5);

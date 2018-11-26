@@ -39,6 +39,8 @@
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 1
+#define UPPER_FEED_ANGLE_THRESH 80
+#define LOWER_FEED_ANGLE_THRESH 0
 
 float thresh_lin = 0.01;
 float thresh_ang = 0.15;
@@ -205,14 +207,14 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
     break;
 
   case ARC_LEFT: //  Translate up, translate right, rotate left
-    ROS_INFO("Arc left");
+    ROS_INFO("Arc left: Feed water");
     twist.twist.linear.z=VEL_LIN_MAX;
    // twist.twist.linear.x=-VEL_LIN_MAX;
     twist.twist.angular.z=-VEL_ANG_MAX;
     break;
 
   case ARC_RIGHT: //  Translate down, translate left, rotate right
-    ROS_INFO("Arc right");
+    ROS_INFO("Arc right: Retreat");
     twist.twist.linear.z=-VEL_LIN_MAX;
    // twist.twist.linear.x=VEL_LIN_MAX;
     twist.twist.angular.z=VEL_ANG_MAX;
@@ -360,6 +362,50 @@ void waitForPoseDataAvailable()
   ROS_INFO("Pose data available");
 }
 
+bool checkUpperAngleThreshold()
+{
+  geometry_msgs::PoseStamped temp_pose;
+
+  lock_pose.lock();
+  temp_pose=current_pose;
+  lock_pose.unlock();
+
+  double temp_roll, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
+
+  if ( angles::to_degrees(temp_pitch) > UPPER_FEED_ANGLE_THRESH )
+  {
+    ROS_WARN_STREAM("MAX UPPER FEED ANGLE REACHED");
+    return false;
+  }
+  else
+  {
+   return true;
+  }
+}
+
+bool checkLowerAngleThreshold()
+{
+  geometry_msgs::PoseStamped temp_pose;
+
+  lock_pose.lock();
+  temp_pose=current_pose;
+  lock_pose.unlock();
+
+  double temp_roll, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
+
+  if (angles::to_degrees(temp_pitch) < LOWER_FEED_ANGLE_THRESH )
+  {
+    ROS_WARN_STREAM("MAX LOWER FEED ANGLE REACHED");
+    return false;
+  }
+  else
+  {
+   return true;
+  }
+}
+
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_sideways");
@@ -399,28 +445,19 @@ int main(int argc, char **argv)
     local_force_f=force_b;
     lock_force.unlock();
 
-    if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH)
+    ///MAIN CONTROL LOOP
+    if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH && checkUpperAngleThreshold())
     {
-      //moveCup(TRANSLATE_UP, VEL_CMD_DURATION/1.5);
-      //moveCup(ROTATE_LEFT, VEL_CMD_DURATION*0.5);
-      //moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION/1.5, 0.01);
-      //waitForActionCompleted();
       moveCup(TRANSLATE_UP, VEL_CMD_DURATION*0.5);
       moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION*0.2);
       moveCup(ARC_LEFT, VEL_CMD_DURATION);
-
       print_once_only=true;
     }
-    else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH)
+    else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH && checkLowerAngleThreshold())
     {
-      //moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/1.5);
-      //moveCup(ROTATE_RIGHT, VEL_CMD_DURATION*0.5);
-      //moveCup(TRANSLATE_LEFT, VEL_CMD_DURATION/1.5, 0.01);
-      //waitForActionCompleted();
       moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION*0.5);
       moveCup(TRANSLATE_LEFT, VEL_CMD_DURATION*0.2);
       moveCup(ARC_RIGHT, VEL_CMD_DURATION);
-
       print_once_only=true;
     }
     else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
