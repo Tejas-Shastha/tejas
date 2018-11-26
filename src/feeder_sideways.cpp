@@ -16,11 +16,17 @@
 
 #define ARC_DOWN 1
 #define ARC_UP 2
-#define TRANSLATE_BACK 3
-#define ROTATE_DOWN 4
-#define TRANSLATE_UP 5
-#define TRANSLATE_DOWN 6
-#define TRANSLATE_FRONT 7
+#define ROTATE_DOWN 3
+#define ROTATE_LEFT 4
+#define ROTATE_RIGHT 5
+#define TRANSLATE_UP 6
+#define TRANSLATE_DOWN 7
+#define TRANSLATE_FRONT 8
+#define TRANSLATE_BACK 9
+#define TRANSLATE_LEFT 10
+#define TRANSLATE_RIGHT 11
+#define ARC_LEFT 12
+#define ARC_RIGHT 13
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
@@ -32,7 +38,7 @@
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
-#define VEL_CMD_DURATION 0.8
+#define VEL_CMD_DURATION 1
 
 float thresh_lin = 0.01;
 float thresh_ang = 0.15;
@@ -122,6 +128,22 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,d
     start_pose.pose.position.z=distance;
     start_pose.pose.orientation = quat;
     break;
+  case TRANSLATE_RIGHT :
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(0),angles::from_degrees(0),angles::from_degrees(0));
+    start_pose.header.frame_id=END_EFF_FRAME;
+    start_pose.pose.position.x=-distance;
+    start_pose.pose.position.y=0;
+    start_pose.pose.position.z=0;
+    start_pose.pose.orientation = quat;
+    break;
+  case TRANSLATE_LEFT :
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(0),angles::from_degrees(0),angles::from_degrees(0));
+    start_pose.header.frame_id=END_EFF_FRAME;
+    start_pose.pose.position.x=distance;
+    start_pose.pose.position.y=0;
+    start_pose.pose.position.z=0;
+    start_pose.pose.orientation = quat;
+    break;
 
   /// SENSORFRAME  X-forward-red, Y-left-green, Z-up-blue
   }
@@ -135,36 +157,65 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
   twist.header.seq=seq++;
   switch(direction)
   {
-    case ARC_DOWN:
-      ROS_INFO("Arc down");
-      twist.twist.linear.z=VEL_LIN_MAX;
-      twist.twist.angular.x=VEL_ANG_MAX;
+  case ARC_DOWN:
+    ROS_INFO("Arc down");
+    twist.twist.linear.z=VEL_LIN_MAX;
+    twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
-    case ARC_UP:
-      ROS_INFO("Arc up");
-      twist.twist.linear.z=-VEL_LIN_MAX;
-      twist.twist.angular.x=-VEL_ANG_MAX;
+  case ARC_UP:
+    ROS_INFO("Arc up");
+    twist.twist.linear.z=-VEL_LIN_MAX;
+    twist.twist.angular.x=-VEL_ANG_MAX;
     break;
 
-    case TRANSLATE_BACK:
-      ROS_INFO("Translate back");
-      twist.twist.linear.x=-VEL_LIN_MAX;
+  case TRANSLATE_LEFT:
+ //   ROS_INFO("Translate left");
+    twist.twist.linear.x=VEL_LIN_MAX;
     break;
 
-    case ROTATE_DOWN:
-      ROS_INFO("Rotate down");
-      twist.twist.angular.x=VEL_ANG_MAX;
+  case TRANSLATE_RIGHT:
+//    ROS_INFO("Translate right");
+    twist.twist.linear.x=-VEL_LIN_MAX;
     break;
 
-    case TRANSLATE_UP:
-      ROS_INFO("Translate up");
-      twist.twist.linear.z=VEL_LIN_MAX;
+  case ROTATE_DOWN:
+    ROS_INFO("Rotate down");
+    twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
-    case TRANSLATE_DOWN:
-      ROS_INFO("Translate down");
-      twist.twist.linear.z=-VEL_LIN_MAX;
+  case TRANSLATE_UP:
+ //   ROS_INFO("Translate up");
+    twist.twist.linear.z=VEL_LIN_MAX;
+    break;
+
+  case TRANSLATE_DOWN:
+//    ROS_INFO("Translate down");
+    twist.twist.linear.z=-VEL_LIN_MAX;
+    break;
+
+  case ROTATE_LEFT:
+    ROS_INFO("Rotate left");
+    twist.twist.angular.z=-VEL_ANG_MAX;
+    break;
+
+  case ROTATE_RIGHT:
+    ROS_INFO("Rotate right");
+    twist.twist.angular.z=VEL_ANG_MAX;
+    break;
+
+  case ARC_LEFT: //  Translate up, translate right, rotate left
+    ROS_INFO("Arc left");
+    twist.twist.linear.z=VEL_LIN_MAX;
+   // twist.twist.linear.x=-VEL_LIN_MAX;
+    twist.twist.angular.z=-VEL_ANG_MAX;
+    break;
+
+  case ARC_RIGHT: //  Translate down, translate left, rotate right
+    ROS_INFO("Arc right");
+    twist.twist.linear.z=-VEL_LIN_MAX;
+   // twist.twist.linear.x=VEL_LIN_MAX;
+    twist.twist.angular.z=VEL_ANG_MAX;
     break;
 
   }
@@ -215,9 +266,11 @@ void positionControlDriveForDirection(int direction, double distance)
   {
     try
     {
+
       lock_pose.lock();
       start_pose = current_pose;
       lock_pose.unlock();
+
 
       setPoseForDirection(direction, start_pose, distance);
 
@@ -227,9 +280,9 @@ void positionControlDriveForDirection(int direction, double distance)
     }
     catch (tf::ExtrapolationException e)
     {
-     /* ROS_INFO_STREAM("Waiting for transform "
-                      //<< e.what()
-                      );*/
+//      ROS_INFO_STREAM("Waiting for transform "
+//                      << e.what()
+//                      );
     }
     ros::spinOnce();
     loop_rate.sleep();
@@ -241,7 +294,11 @@ void positionControlDriveForDirection(int direction, double distance)
 void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.1)
 {
   //ROS_INFO_STREAM("Calling moveCup. Direction : " << direction << " Duration : " << duration << " Distance: " << distance);
-  if (direction==TRANSLATE_BACK || direction==TRANSLATE_FRONT)
+  if (direction==TRANSLATE_BACK
+      || direction==TRANSLATE_FRONT
+      //|| direction==TRANSLATE_LEFT
+      //|| direction==TRANSLATE_RIGHT
+      )
   {
     positionControlDriveForDirection(direction, distance);
     return;
@@ -259,10 +316,8 @@ void fallBack(geometry_msgs::PoseStamped initial_pose)
 {
   cmd_pos.publish(initial_pose);
   waitForActionCompleted();
-  moveCup(TRANSLATE_BACK);
+  moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION*3);
 }
-
-
 
 void poseGrabber(geometry_msgs::PoseStamped pose)
 {
@@ -307,7 +362,7 @@ void waitForPoseDataAvailable()
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "feeder_position_control");
+  ros::init(argc, argv, "feeder_sideways");
   ros::NodeHandle nh;
 
   tf::TransformListener tf_listener;
@@ -329,7 +384,11 @@ int main(int argc, char **argv)
   initial_pose=current_pose;
   lock_pose.unlock();
 
-  moveCup(ROTATE_DOWN, 2*VEL_CMD_DURATION);
+//  moveCup(TRANSLATE_UP, VEL_CMD_DURATION*0.5);
+  moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION*0.2);
+  moveCup(ARC_LEFT, VEL_CMD_DURATION);
+
+
 
   while(ros::ok())
   {
@@ -342,20 +401,32 @@ int main(int argc, char **argv)
 
     if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH)
     {
-      moveCup(ARC_DOWN);
-      moveCup(TRANSLATE_UP, VEL_CMD_DURATION/5);
+      //moveCup(TRANSLATE_UP, VEL_CMD_DURATION/1.5);
+      //moveCup(ROTATE_LEFT, VEL_CMD_DURATION*0.5);
+      //moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION/1.5, 0.01);
+      //waitForActionCompleted();
+      moveCup(TRANSLATE_UP, VEL_CMD_DURATION*0.5);
+      moveCup(TRANSLATE_RIGHT, VEL_CMD_DURATION*0.2);
+      moveCup(ARC_LEFT, VEL_CMD_DURATION);
+
       print_once_only=true;
     }
     else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH)
     {
-      moveCup(ARC_UP);
-      moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/5);
+      //moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/1.5);
+      //moveCup(ROTATE_RIGHT, VEL_CMD_DURATION*0.5);
+      //moveCup(TRANSLATE_LEFT, VEL_CMD_DURATION/1.5, 0.01);
+      //waitForActionCompleted();
+      moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION*0.5);
+      moveCup(TRANSLATE_LEFT, VEL_CMD_DURATION*0.2);
+      moveCup(ARC_RIGHT, VEL_CMD_DURATION);
+
       print_once_only=true;
     }
     else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
     {
+      ROS_WARN("FALLBACK INITIATED, CLOSING NODE");
       fallBack(initial_pose);
-      ROS_WARN("Closing node");
       break;
     }
     else if (print_once_only)
@@ -366,6 +437,8 @@ int main(int argc, char **argv)
 
     loop_rate.sleep();
   }
+
+
 
   ros::spinOnce();
 

@@ -62,22 +62,10 @@ int main(int argc, char **argv)
   pose_lock.unlock();
 
   ros::Time start = ros::Time::now();
-  ros::Duration runtime(4.0);
+  ros::Duration runtime(1.0);
 
-
-
-
-
-
-  vel_msg.twist_angular_z=0.4;
-  //vel_msg.twist_linear_x=0.04;
-
-
-
-
-
-
-
+  //vel_msg.twist_angular_z=0.4;
+  vel_msg.twist_linear_x=0.04;
 
   while(ros::Time::now()-start < runtime)
   {

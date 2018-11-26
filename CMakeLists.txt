@@ -44,9 +44,13 @@ add_executable(feeder_position_control src/feeder_position_control.cpp)
 add_dependencies(feeder_position_control ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_position_control	${catkin_LIBRARIES})
 
-add_executable(feeder_velocity_control src/feeder_velocity_control.cpp)
-add_dependencies(feeder_velocity_control ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(feeder_velocity_control	${catkin_LIBRARIES})
+add_executable(feeder_straight src/feeder_straight.cpp)
+add_dependencies(feeder_straight ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_straight	${catkin_LIBRARIES})
+
+add_executable(feeder_sideways src/feeder_sideways.cpp)
+add_dependencies(feeder_sideways ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_sideways	${catkin_LIBRARIES})
 
 add_executable(tf_caster src/tf_caster.cpp)
 add_dependencies(tf_caster ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
