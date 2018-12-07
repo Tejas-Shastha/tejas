@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="name"/>
+
+    <arg name="user"/>
+
+    <node pkg="rosbag" type="record" name="rosbag_record" args="-a -O /media/lukas/Elements/Feeding_experiment_rosbags/$(arg user)/$(arg name)" />
+
+    <node pkg="tejas" type="feeder_sideways" name="feeder_straight" output="screen">
+    </node>    
+
+</launch>

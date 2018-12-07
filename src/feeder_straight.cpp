@@ -26,6 +26,7 @@
 #define SENSOR_FRAME "forcesensor"
 #define FORCE_F_TRIGGER_THRESH 0.4
 #define FORCE_B_TRIGGER_THRESH 0.4
+#define FORCE_BOTH_FALLBACK 1.0
 #define FORCE_F_PAIN_THRESH 2.5
 #define FORCE_B_PAIN_THRESH 2.5
 #define ROTATION_STEP 10
@@ -382,8 +383,8 @@ int main(int argc, char **argv)
     ros::spinOnce();
 
     lock_force.lock();
-    local_force_b=force_f;  //Interchange sensors so that it makes practical sense
-    local_force_f=force_b;
+    local_force_f=force_f;  //Interchange sensors so that it makes practical sense
+    local_force_b=force_b;
     lock_force.unlock();
 
     if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH && checkUpperAngleThreshold())
@@ -398,7 +399,8 @@ int main(int argc, char **argv)
       moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION/5);
       print_once_only=true;
     }
-    else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
+    //else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
+    else if (local_force_f >= FORCE_BOTH_FALLBACK && local_force_b >=FORCE_BOTH_FALLBACK)
     {
       fallBack(initial_pose);
       ROS_WARN("Closing node");
