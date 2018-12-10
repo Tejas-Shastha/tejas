@@ -92,7 +92,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "data_extractor");
   ros::NodeHandle nh;
 
-  std::stoi(argv[1],nullptr,USER_ID);
+  USER_ID=std::stoi(argv[1]);
   ROS_INFO_STREAM("User ID: " << USER_ID);
 
   FILE_NAME = argv[2];
