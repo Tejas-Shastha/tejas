@@ -1,3 +1,13 @@
+///
+/// if force € [0, FORCE_F_1_2_THRESH] then state 1 : lower cup
+/// if force € (FORCE_F_1_2_THRESH, FORCE_F_2_3_THRESH] then state 2 : do nothing
+/// if force € (FORCE_F_2_3_THRESH, MAX] then state 3 : raise cup
+///
+///
+
+
+
+
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "geometry_msgs/PoseStamped.h"
@@ -18,29 +28,27 @@
 #define ARC_UP 2
 #define TRANSLATE_BACK 3
 #define ROTATE_DOWN 4
-#define TRANSLATE_UP 5
-#define TRANSLATE_DOWN 6
-#define TRANSLATE_FRONT 7
+#define ROTATE_UP 5
+#define TRANSLATE_UP 6
+#define TRANSLATE_DOWN 7
+#define TRANSLATE_FRONT 8
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_TRIGGER_THRESH 0.4
-#define FORCE_B_TRIGGER_THRESH 0.4
-#define FORCE_BOTH_FALLBACK 1.0
-#define FORCE_F_PAIN_THRESH 2.5
-#define FORCE_B_PAIN_THRESH 2.5
+#define FORCE_F_1_2_THRESH 0.3
+#define FORCE_F_2_3_THRESH 2.0
 #define ROTATION_STEP 10
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 180 // was 140
-#define LOWER_FEED_ANGLE_THRESH 95
+#define UPPER_FEED_ANGLE_THRESH 140 // was 140
 
+double lower_angle_thresh = 85;
 float thresh_lin = 0.01;
-float thresh_ang = 0.15;
+float thresh_ang = 0.05;
 
-static int seq=0;
+int step_count;
 
 std::string result;
 std::mutex lock_pose;
@@ -53,8 +61,6 @@ ros::Publisher cmd_pos;
 ros::Publisher cmd_vel;
 geometry_msgs::PoseStamped current_pose, initial_pose;
 
-
-
 void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll,double& pitch, double& yaw)
 {
   tf::Quaternion quat;
@@ -63,7 +69,6 @@ void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll
   tf::Matrix3x3 mat(quat);
   mat.getRPY(roll, pitch,yaw);
 }
-
 
 void waitForActionCompleted()
 {
@@ -85,7 +90,6 @@ void waitForActionCompleted()
     }
   }
 }
-
 
 void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,double  distance)
 {
@@ -135,18 +139,17 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
   geometry_msgs::TwistStamped twist;
   twist.header.stamp=ros::Time::now();
   twist.header.frame_id="j2s7s300_link_7";
-  twist.header.seq=seq++;
   switch(direction)
   {
     case ARC_DOWN:
       ROS_INFO("Arc down");
-      //twist.twist.linear.z=VEL_LIN_MAX;
+      twist.twist.linear.z=VEL_LIN_MAX;
       twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
     case ARC_UP:
       ROS_INFO("Arc up");
-      //twist.twist.linear.z=-VEL_LIN_MAX;
+      twist.twist.linear.z=-VEL_LIN_MAX;
       twist.twist.angular.x=-VEL_ANG_MAX;
     break;
 
@@ -158,6 +161,11 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
     case ROTATE_DOWN:
       ROS_INFO("Rotate down");
       twist.twist.angular.x=VEL_ANG_MAX;
+    break;
+
+    case ROTATE_UP:
+      ROS_INFO("Rotate up");
+      twist.twist.angular.x=-VEL_ANG_MAX;
     break;
 
     case TRANSLATE_UP:
@@ -174,19 +182,8 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
   return twist;
 }
 
-bool isForceSafe()
-{
-  double local_force_f,local_force_b;
-  lock_force.lock();
-  local_force_f=force_f;
-  local_force_b=force_b;
-  lock_force.unlock();
-
-  if (local_force_f >= FORCE_F_PAIN_THRESH || local_force_b >= FORCE_F_PAIN_THRESH)
-    return false;
-  else
-    return true;
-}
+bool checkUpperAngleThreshold();
+bool checkLowerAngleThreshold();
 
 void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double duration)
 {
@@ -194,15 +191,7 @@ void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double durat
   while (ros::Time::now() - time_start < ros::Duration(duration))
   {
     ros::spinOnce();
-    if(isForceSafe())
-    {
-      cmd_vel.publish(twist_msg);
-    }
-    else
-    {
-      ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
-      break;
-    }
+    cmd_vel.publish(twist_msg);
   }
 }
 
@@ -241,9 +230,78 @@ void positionControlDriveForDirection(int direction, double distance)
   cmd_pos.publish(pose_in_base);
 }
 
+void driveToRollGoalWithVelocity(int direction)
+{
+  if(direction == ROTATE_DOWN)
+    ROS_INFO_STREAM("Rotate down");
+  else if (direction == ROTATE_UP)
+    ROS_INFO_STREAM("Rotate up");
+  else
+  {
+    ROS_ERROR_STREAM("Wrong direction given!!");
+    return;
+  }
+
+  geometry_msgs::PoseStamped start_pose, goal_pose, temp_pose;
+
+  lock_pose.lock();
+  start_pose=current_pose;
+  lock_pose.unlock();
+
+  double temp_rol, temp_pit, temp_yaw;
+  double goal_rol, goal_pit, goal_yaw;
+  double start_rol, start_pit, start_yaw;
+  double del_rol;
+
+  goal_pose = start_pose;
+
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==ROTATE_DOWN?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
+  tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
+  tf::Quaternion q_goal = q_start*q_rot;
+
+  tf::quaternionTFToMsg(q_goal,goal_pose.pose.orientation);
+
+
+  ros::Rate loop_rate(100);
+  //ros::Time start = ros::Time::now();
+  while(ros::ok())
+  {
+    lock_pose.lock();
+    temp_pose = current_pose;
+    lock_pose.unlock();
+
+    getRPYFromQuaternionMSG(goal_pose.pose.orientation, goal_rol, goal_pit, goal_yaw);
+    getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
+    getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
+
+    del_rol = goal_rol - temp_rol;
+
+    if (std::fabs(del_rol)>=thresh_ang)
+    {
+      geometry_msgs::TwistStamped twist_msg;
+      twist_msg.twist.linear.x = 0;
+      twist_msg.twist.linear.y = 0;
+      twist_msg.twist.linear.z = 0;
+      twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+      twist_msg.twist.angular.y = 0;
+      twist_msg.twist.angular.z= 0;
+
+      cmd_vel.publish(twist_msg);
+    }
+    else
+    {
+      //ROS_INFO_STREAM("Goal reached, breaking loop");
+      break;
+    }
+
+    ros::spinOnce();
+    loop_rate.sleep();
+  }
+
+}
+
 void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.1)
 {
-  //ROS_INFO_STREAM("Calling moveCup. Direction : " << direction << " Duration : " << duration << " Distance: " << distance);
   if (direction==TRANSLATE_BACK || direction==TRANSLATE_FRONT)
   {
     positionControlDriveForDirection(direction, distance);
@@ -257,14 +315,6 @@ void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.
   }
   return;
 }
-
-void fallBack(geometry_msgs::PoseStamped initial_pose)
-{
-  cmd_pos.publish(initial_pose);
-  waitForActionCompleted();
-  moveCup(TRANSLATE_BACK);
-}
-
 
 
 void poseGrabber(geometry_msgs::PoseStamped pose)
@@ -341,15 +391,57 @@ bool checkLowerAngleThreshold()
   double temp_roll, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
 
-  if (angles::to_degrees(temp_roll) < LOWER_FEED_ANGLE_THRESH )
+  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < ROTATION_STEP/2 )
   {
-    ROS_WARN_STREAM("MAX LOWER FEED ANGLE REACHED");
+    //ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << angles::to_degrees(temp_roll));
     return false;
   }
   else
   {
+   //ROS_INFO_STREAM("Current roll: " << (int)angles::to_degrees(temp_roll));
    return true;
   }
+}
+
+double getCurrentRoll()
+{
+  lock_pose.lock();
+  geometry_msgs::PoseStamped temp_pose = current_pose;
+  lock_pose.unlock();
+
+  double temp_rol, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pitch, temp_yaw);
+
+  return temp_rol;
+}
+
+void callFallbackTimer(double duration)
+{
+
+  ros::Time start = ros::Time::now();
+  ros::Duration run_for(duration);
+  ros::Rate loop_rate(10);
+  ROS_WARN_STREAM("Starting fallback timeout for: " << duration << "s.");
+  while(ros::Time::now() - start <= run_for)
+  {
+    lock_force.lock();
+    double force = force_f;
+    lock_force.unlock();
+
+    if (force>= FORCE_F_1_2_THRESH)
+    {
+      ROS_INFO_STREAM("Force detected, breaking out of timer");
+      return;
+    }
+
+    loop_rate.sleep();
+    ros::spinOnce();
+  }
+
+  ROS_WARN_STREAM("Time out! Initialising fallback");
+  moveCup(TRANSLATE_BACK);
+  ros::shutdown();
+  exit(1);
 }
 
 int main(int argc, char **argv)
@@ -369,47 +461,67 @@ int main(int argc, char **argv)
 
   waitForPoseDataAvailable();
 
-  double local_force_f,local_force_b;
+  double local_force_f
+      //,local_force_b
+      ;
   bool print_once_only=true;
 
   lock_pose.lock();
   initial_pose=current_pose;
   lock_pose.unlock();
 
-  //moveCup(ROTATE_DOWN, 2*VEL_CMD_DURATION);
+  double r,p,y;
+  getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
+  lower_angle_thresh = r;
+  ROS_INFO_STREAM("Lower feed angle thresh set to " << (int)angles::to_degrees(lower_angle_thresh));
 
+  step_count = 0;
+  int prev_step_count = 0;
   while(ros::ok())
   {
     ros::spinOnce();
 
     lock_force.lock();
-    local_force_f=force_f;  //Interchange sensors so that it makes practical sense
-    local_force_b=force_b;
+    local_force_f=force_f;
     lock_force.unlock();
 
-    if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b <FORCE_B_TRIGGER_THRESH && checkUpperAngleThreshold())
+
+
+    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
     {
-      moveCup(TRANSLATE_UP, VEL_CMD_DURATION*0.5);
-      moveCup(ARC_DOWN);
+      ROS_INFO("---------------------------------------------------------------------");
+      driveToRollGoalWithVelocity(ROTATE_UP);
+      prev_step_count = step_count--;
+      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
+      ROS_INFO("---------------------------------------------------------------------");
+      ROS_INFO(" ");
+
+      if (prev_step_count == 1 && step_count == 0)
+      {
+        callFallbackTimer(3);
+      }
     }
-    else if (local_force_f <FORCE_F_TRIGGER_THRESH && local_force_b>=FORCE_B_TRIGGER_THRESH && checkLowerAngleThreshold())
+
+    else if (local_force_f >= FORCE_F_2_3_THRESH && checkUpperAngleThreshold())
     {
-      moveCup(TRANSLATE_DOWN, VEL_CMD_DURATION*0.5);
-      moveCup(ARC_UP);
+      ROS_INFO("---------------------------------------------------------------------");
+      driveToRollGoalWithVelocity(ROTATE_DOWN);
+      prev_step_count =  step_count++;
+      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
+      ROS_INFO("---------------------------------------------------------------------");
+      ROS_INFO(" ");
     }
-    //else if (local_force_f >= FORCE_F_TRIGGER_THRESH && local_force_b >=FORCE_B_TRIGGER_THRESH)
-    else if (local_force_f >= FORCE_BOTH_FALLBACK && local_force_b >=FORCE_BOTH_FALLBACK)
-    {
-      fallBack(initial_pose);
-      ROS_WARN("Closing node");
-      break;
-    }
+
     else if (print_once_only)
     {
+      ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Do nothing.");
       print_once_only=false;
+      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+      ROS_INFO("---------------------------------------------------------------------");
+      ROS_INFO(" ");
     }
 
     loop_rate.sleep();

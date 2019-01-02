@@ -79,11 +79,11 @@ int main(int argc, char **argv)
       start_pose=current_pose;
       lock_pose.unlock();
 
-      geometry_msgs::Quaternion quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(0),angles::from_degrees(0),angles::from_degrees(0));
+      geometry_msgs::Quaternion quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(10),angles::from_degrees(0),angles::from_degrees(0));
       start_pose.header.frame_id=end_eff_frame;
       start_pose.pose.position.x=0;
       start_pose.pose.position.y=0;
-      start_pose.pose.position.z=0.05;
+      start_pose.pose.position.z=0;
       start_pose.pose.orientation = quat;
 
       tf_listener.transformPose(base_frame,start_pose,pose_in_base);

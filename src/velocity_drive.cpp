@@ -14,12 +14,23 @@
 #define VEL_ANG_MAX 0.4
 
 float thresh_lin = 0.01;
-float thresh_ang = 0.15;
+float thresh_ang = 0.05;
 
 double temp_rol, temp_pit, temp_yaw;
 double goal_rol, goal_pit, goal_yaw;
 double start_rol, start_pit, start_yaw;
 double del_rol, del_pit, del_yaw;
+
+
+std::string result;
+std::mutex lock_pose;
+std::mutex lock_status;
+std::mutex lock_proc;
+std::mutex lock_force;
+double force_f, force_b;
+bool processing=false;
+ros::Publisher cmd_pos;
+ros::Publisher cmd_vel;
 
 
 geometry_msgs::PoseStamped current_pose, start_pose, goal_pose;
@@ -47,13 +58,24 @@ void poseGrabber(geometry_msgs::PoseStamped pose)
 }
 
 
+void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double duration)
+{
+  ros::Time time_start = ros::Time::now();
+  while (ros::Time::now() - time_start < ros::Duration(duration))
+  {
+    ros::spinOnce();
+    cmd_vel.publish(twist_msg);
+  }
+}
+
 
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "velocity_drive");
   ros::NodeHandle nh;
 
-  ros::Publisher cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
+  //ros::Publisher cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
+  cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
   ros::Publisher pub_kinova_vel = nh.advertise<kinova_msgs::PoseVelocity>("/j2s7s300_driver/in/cartesian_velocity", 1000);
   ros::Subscriber tool_pose = nh.subscribe("/j2s7s300_driver/out/tool_pose",1000, poseGrabber );
 
@@ -95,14 +117,11 @@ int main(int argc, char **argv)
 
   tf::quaternionTFToMsg(q_goal,goal_pose.pose.orientation);
 
-
   getRPYFromQuaternionMSG(goal_pose.pose.orientation, goal_rol, goal_pit, goal_yaw);
   getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
 
-
-
   ros::Time start = ros::Time::now();
- /* while(ros::ok())
+  while(ros::ok())
   {
     pose_lock.lock();
     temp_pose = current_pose;
@@ -121,73 +140,39 @@ int main(int argc, char **argv)
     del_pit = goal_pit - temp_pit;
     del_yaw = goal_yaw - temp_yaw;
 
-
-    //   if ( std::fabs(delta_lin_x)>=thresh_lin
-    //         || std::fabs(delta_lin_y)>=thresh_lin
-    //         || std::fabs(delta_lin_z)>=thresh_lin
-    //         )
-    //    {
-    //      kinova_msgs::PoseVelocity kinova_vel;
-    //      kinova_vel.twist_linear_x=  delta_lin_x>0?VEL_LIN_MAX:-VEL_LIN_MAX;
-    //      kinova_vel.twist_linear_y=  delta_lin_y>0?VEL_LIN_MAX:-VEL_LIN_MAX;
-    //      kinova_vel.twist_linear_z=  delta_lin_z>0?VEL_LIN_MAX:-VEL_LIN_MAX;
-    //      kinova_vel.twist_angular_x= 0;
-    //      kinova_vel.twist_angular_y= 0;
-    //      kinova_vel.twist_angular_z= 0;
-
-    //      ROS_INFO_STREAM("Goal pose : " << goal_pose);
-    //      ROS_INFO_STREAM("Deltas_lin X: " << delta_lin_x << " Y:" << delta_lin_y <<" Z: " << delta_lin_z);
-    //      std::cout << (kinova_vel) << std::endl;
-    //      //pub_kinova_vel.publish(kinova_vel);
-    //    }
-    //    else
-//    if (std::fabs(del_rol)>=thresh_ang)
-//    {
-//      kinova_msgs::PoseVelocity kinova_vel;
-//      kinova_vel.twist_linear_x=  0;
-//      kinova_vel.twist_linear_y=  0;
-//      kinova_vel.twist_linear_z=  0;
-//      kinova_vel.twist_angular_x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
-//      kinova_vel.twist_angular_y= 0;
-//      kinova_vel.twist_angular_z= 0;
-//      ROS_INFO_STREAM("Deltas_ang MAINX: " << del_rol << " Y: " << del_pit << " Z: " << del_yaw);
-//      //std::cout << (kinova_vel) << std::endl;
-//      pub_kinova_vel.publish(kinova_vel);
-//    }
-//    else
-      if (std::fabs(del_pit)>=thresh_ang)
+    if (std::fabs(del_rol)>=thresh_ang)
     {
       kinova_msgs::PoseVelocity kinova_vel;
       kinova_vel.twist_linear_x=  0;
       kinova_vel.twist_linear_y=  0;
       kinova_vel.twist_linear_z=  0;
-      kinova_vel.twist_angular_x= 0;
-      kinova_vel.twist_angular_y= del_pit>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+      kinova_vel.twist_angular_x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+      kinova_vel.twist_angular_y= 0;
       kinova_vel.twist_angular_z= 0;
-      ROS_INFO_STREAM("Deltas_ang X: " << del_rol << " MAINY: " << del_pit << " Z: " << del_yaw);
+
+      geometry_msgs::TwistStamped twist_msg;
+      twist_msg.twist.linear.x = 0;
+      twist_msg.twist.linear.y = 0;
+      twist_msg.twist.linear.z = 0;
+      twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
+      twist_msg.twist.angular.y = 0;
+      twist_msg.twist.angular.z= 0;
+
+      //ROS_INFO_STREAM("Deltas_ang MAINX: " << del_rol << " Y: " << del_pit << " Z: " << del_yaw);
       //std::cout << (kinova_vel) << std::endl;
-      pub_kinova_vel.publish(kinova_vel);
+      //pub_kinova_vel.publish(kinova_vel);
+
+      cmd_vel.publish(twist_msg);
     }
-//    else
-//        if (std::fabs(del_yaw)>=thresh_ang)
-//    {
-//      kinova_msgs::PoseVelocity kinova_vel;
-//      kinova_vel.twist_linear_x=  0;
-//      kinova_vel.twist_linear_y=  0;
-//      kinova_vel.twist_linear_z=  0;
-//      kinova_vel.twist_angular_x= 0;
-//      kinova_vel.twist_angular_y= 0;
-//      kinova_vel.twist_angular_z= del_yaw>0?VEL_ANG_MAX:-VEL_ANG_MAX;
-//      ROS_INFO_STREAM("Deltas_ang X: " << del_rol << " Y: " << del_pit << " MAINZ: " << del_yaw);
-//      //std::cout << (kinova_vel) << std::endl;
-//      pub_kinova_vel.publish(kinova_vel);
-//    }
     else
+    {
+      ROS_INFO_STREAM("Goal reached, breaking loop");
       break;
+    }
 
     ros::spinOnce();
     loop_rate.sleep();
-  }*/
+  }
 
 
   ROS_INFO_STREAM("Start angles R: " << angles::to_degrees(start_rol) << " P: " << angles::to_degrees(start_pit) << " Y: " << angles::to_degrees(start_yaw));

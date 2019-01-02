@@ -48,6 +48,10 @@ add_executable(feeder_straight src/feeder_straight.cpp)
 add_dependencies(feeder_straight ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_straight	${catkin_LIBRARIES})
 
+add_executable(feeder_straight_1D src/feeder_straight_1D.cpp)
+add_dependencies(feeder_straight_1D ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_straight_1D	${catkin_LIBRARIES})
+
 add_executable(feeder_sideways src/feeder_sideways.cpp)
 add_dependencies(feeder_sideways ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_sideways	${catkin_LIBRARIES})
