@@ -13,6 +13,7 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "mutex"
 #include "angles/angles.h"
+#include "std_msgs/Int32.h"
 
 
 #include "geometry_msgs/Vector3.h"
@@ -456,6 +457,7 @@ int main(int argc, char **argv)
   cmd_pos = nh.advertise<geometry_msgs::PoseStamped>("/RobotControl/PoseControl", 1000);
   ros::Subscriber tool_pose = nh.subscribe("/j2s7s300_driver/out/tool_pose",1000, poseGrabber );
   ros::Subscriber control_status = nh.subscribe("/RobotControl/Status",1000, statusGrabber );
+  ros::Publisher arm_pose_pub = nh.advertise<std_msgs::Int32>("/arm_state", 1000);
 
   ros::Rate loop_rate(9);
 
@@ -524,7 +526,12 @@ int main(int argc, char **argv)
       ROS_INFO(" ");
     }
 
+
     loop_rate.sleep();
+    std_msgs::Int32 arm_pose_msg;
+    arm_pose_msg.data=step_count;
+    arm_pose_pub.publish(arm_pose_msg);
+
   }
 
   ros::spinOnce();
