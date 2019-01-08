@@ -8,6 +8,10 @@
 /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
 ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
 ///   90 to 180	  y =  0.004444444*x - 0.8				
+///
+///
+///
+/// TODO: IMPLEMENT SAFETY ABOVE 1.5N
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -37,8 +41,8 @@
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_1_2_THRESH 0.3
-#define FORCE_F_2_3_THRESH 2.0
+#define FORCE_F_1_2_THRESH 0.2
+#define FORCE_F_2_3_THRESH 0.4
 #define ROTATION_STEP 10
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
