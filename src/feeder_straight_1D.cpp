@@ -3,10 +3,11 @@
 /// if force € (FORCE_F_1_2_THRESH, FORCE_F_2_3_THRESH] then state 2 : do nothing
 /// if force € (FORCE_F_2_3_THRESH, MAX] then state 3 : raise cup
 ///
-///
-
-
-
+/// Fallback velocity functions
+///	Vel.x				                                  Vel.y 
+/// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
+///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
+///   90 to 180	  y =  0.004444444*x - 0.8				
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -416,6 +417,7 @@ double getCurrentRoll()
   return temp_rol;
 }
 
+void fallback();
 void callFallbackTimer(double duration)
 {
 
@@ -429,7 +431,7 @@ void callFallbackTimer(double duration)
     double force = force_f;
     lock_force.unlock();
 
-    if (force>= FORCE_F_1_2_THRESH)
+    if (force>= FORCE_F_2_3_THRESH)
     {
       ROS_INFO_STREAM("Force detected, breaking out of timer");
       return;
@@ -440,9 +442,67 @@ void callFallbackTimer(double duration)
   }
 
   ROS_WARN_STREAM("Time out! Initialising fallback");
-  moveCup(TRANSLATE_BACK);
+ // moveCup(TRANSLATE_BACK);
+  fallback();
   ros::shutdown();
   exit(1);
+}
+
+
+void fallback()
+{
+  lock_pose.lock();
+  geometry_msgs::PoseStamped  start_pose=current_pose;
+  lock_pose.unlock();
+
+  double roll, pitch, yaw;
+  getRPYFromQuaternionMSG(start_pose.pose.orientation, roll, pitch, yaw);
+
+  int yaw_degrees = angles::to_degrees(yaw);
+
+  // ROS_INFO_STREAM("Current yaw float: " << angles::to_degrees(yaw) << " int " << yaw_degrees);
+
+  geometry_msgs::TwistStamped twist_cmd;
+ 
+  // y = mx + c
+  double m = 0.004444444;
+  double velx_c = 0.8;
+  double vely_c = 0.4;
+
+
+  /// Fallback velocity functions
+  ///	Vel.x				                                  Vel.y 
+  /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
+  ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
+  ///   90 to 180	  y =  0.004444444*x - 0.8				
+
+  if (yaw_degrees >= -180 && yaw_degrees < -90)
+  {
+    //ROS_INFO_STREAM("Sector 1");
+    twist_cmd.twist.linear.x = m * yaw_degrees + velx_c;
+    twist_cmd.twist.linear.y = m * yaw_degrees + vely_c;
+  }  
+  else if (yaw_degrees >= -90 &&  yaw_degrees <0)
+  {
+    //ROS_INFO_STREAM("Sector 2");
+    twist_cmd.twist.linear.x = -m * yaw_degrees;
+    twist_cmd.twist.linear.y = m * yaw_degrees + vely_c;
+  }
+  else if (yaw_degrees >= 0 &&  yaw_degrees <90)
+  {
+    //ROS_INFO_STREAM("Sector 3");
+    twist_cmd.twist.linear.x = -m * yaw_degrees;
+    twist_cmd.twist.linear.y = -m * yaw_degrees + vely_c;
+  }
+  else if (yaw_degrees >= 90 &&  yaw_degrees <=180)
+  {
+    //ROS_INFO_STREAM("Sector 4");
+    twist_cmd.twist.linear.x = m * yaw_degrees - velx_c;
+    twist_cmd.twist.linear.y = -m * yaw_degrees + vely_c;
+  }
+  //ROS_INFO_STREAM("Publishing twist : ");
+  //std::cout << (twist_cmd) << std::endl;
+  publishTwistForDuration(twist_cmd,0.5);
 }
 
 int main(int argc, char **argv)
@@ -458,8 +518,6 @@ int main(int argc, char **argv)
   ros::Subscriber tool_pose = nh.subscribe("/j2s7s300_driver/out/tool_pose",1000, poseGrabber );
   ros::Subscriber control_status = nh.subscribe("/RobotControl/Status",1000, statusGrabber );
   ros::Publisher arm_pose_pub = nh.advertise<std_msgs::Int32>("/arm_state", 1000);
-
-  ros::Rate loop_rate(9);
 
   waitForPoseDataAvailable();
 
@@ -479,6 +537,8 @@ int main(int argc, char **argv)
 
   step_count = 0;
   int prev_step_count = 0;
+
+  ros::Rate loop_rate(10);
   while(ros::ok())
   {
     ros::spinOnce();
@@ -531,6 +591,8 @@ int main(int argc, char **argv)
     std_msgs::Int32 arm_pose_msg;
     arm_pose_msg.data=step_count;
     arm_pose_pub.publish(arm_pose_msg);
+
+    loop_rate.sleep();
 
   }
 
