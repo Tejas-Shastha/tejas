@@ -65,7 +65,10 @@ def buildP():
             #Arm in final position
             if (arm ==  int((nS/3))-1):
                 s_ = nS-3
-                r = GOAL_REWARD_POSITIVE
+                if(a == ACTION_STAY):
+                    r = GOAL_REWARD_POSITIVE
+                else:
+                    r = ACTION_REWARD_NEGATIVE
             
             r1 = r2 = r3 = r
 
