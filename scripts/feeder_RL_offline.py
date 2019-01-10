@@ -1,7 +1,9 @@
+#!/usr/bin/env python
 """ https://www.kaggle.com/angps95/intro-to-reinforcement-learning-with-openai-gym """
 
 import numpy as np 
 import env
+import csv
 
 def policy_eval(policy, discount_factor=1.0, theta=0.00001):
     """
@@ -150,19 +152,52 @@ def value_iteration(theta=0.0001, discount_factor=1.0):
     # Implement!
     return policy, V
 
-env.buildP()
+
+def policyMatrixToVector(policy):
+    policy_vector = []
+    for array in policy:
+        policy_vector.append(np.argmax(array))
+    return policy_vector
+    
+def writePolicyArrayToCsv(path, policy):
+    print("Writing policy to", path)
+    with open(path, mode='w') as policy_file:
+        writer = csv.writer(policy_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(policy)
+
+def readPolicyFromCsv(path):
+    arrays = []
+    with open(path) as policy_file:
+        reader = csv.reader(policy_file, delimiter=',')
+        for row in reader:
+            arrays.append(row)
+    
+    intarrays = []
+    for row in arrays:
+        for val in row:
+            intarrays.append(int(val))
+    return intarrays
+
+env.buildP(terminal_state=False)
+
 val_iter_policy = value_iteration(discount_factor=0.1)
-print("VI pi*: ")
-print(val_iter_policy[0]) # This is the output policy
-print("VI pi* eval: ")
-print(policy_eval(val_iter_policy[0],discount_factor=0.1))
+pol_iter_policy = policy_iteration(policy_eval,discount_factor=0.1)
+
+vi_pi_star = policyMatrixToVector(val_iter_policy[0])
+pi_pi_star = policyMatrixToVector(pol_iter_policy[0])
 
 random_policy = np.ones([env.nS, env.nA]) / env.nA
 print("Random pi eval: ")
 print(policy_eval(random_policy,discount_factor=0.1))
-
-pol_iter_policy = policy_iteration(policy_eval,discount_factor=0.1)
-print("PI pi*: ")
-print(pol_iter_policy[0]) # This is the output policy
+print("VI pi* eval: ")
+print(policy_eval(val_iter_policy[0],discount_factor=0.1))
 print("PI pi* eval: ")
 print(policy_eval(pol_iter_policy[0],discount_factor=0.1))
+
+print("VI pi*: ")
+print(vi_pi_star) # This is the output policy
+print("PI pi*: ")
+print(pi_pi_star) # This is the output policy
+
+writePolicyArrayToCsv("VI_pi_star.csv",vi_pi_star)
+writePolicyArrayToCsv("PI_pi_star.csv",pi_pi_star)

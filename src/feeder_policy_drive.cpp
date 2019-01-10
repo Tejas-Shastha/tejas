@@ -29,6 +29,14 @@
 #include <hri_package/Sens_Force.h>
 #include <kinova_msgs/PoseVelocity.h>
 
+#include <fstream>
+#include <vector>
+#include <iterator>
+#include <string>
+#include <algorithm>
+#include <boost/algorithm/string.hpp>
+
+
 
 #define ARC_DOWN 1
 #define ARC_UP 2
@@ -322,7 +330,6 @@ void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.
   return;
 }
 
-
 void poseGrabber(geometry_msgs::PoseStamped pose)
 {
   lock_pose.lock();
@@ -452,7 +459,6 @@ void callFallbackTimer(double duration)
   exit(1);
 }
 
-
 void fallback()
 {
   lock_pose.lock();
@@ -509,9 +515,64 @@ void fallback()
   publishTwistForDuration(twist_cmd,0.5);
 }
 
+
+class CSVReader
+{
+    std::string fileName;
+    std::string delimeter;
+
+public:
+    CSVReader(std::string filename, std::string delm = ",") :
+        fileName(filename), delimeter(delm)
+    { }
+
+    // Function to fetch data from a CSV File
+    std::vector<std::vector<std::string> > getData();
+};
+
+std::vector<std::vector<std::string> > CSVReader::getData()
+{
+    std::ifstream file(fileName);
+
+    std::vector<std::vector<std::string> > dataList;
+
+    std::string line = "";
+    // Iterate through each line and split the content using delimeter
+    while (getline(file, line))
+    {
+        std::vector<std::string> vec;
+        boost::algorithm::split(vec, line, boost::is_any_of(delimeter));
+        dataList.push_back(vec);
+    }
+    // Close the File
+    file.close();
+
+    return dataList;
+}
+
+std::vector<int> getPolicyFromCsv(std::string file)
+{
+    std::vector<int> policy;
+    /*
+  * A class to read data from a csv file.
+  */
+
+
+    //TODO: Implement this!! Link : https://thispointer.com/how-to-read-data-from-a-csv-file-in-c/
+
+
+
+
+
+
+    return policy;
+}
+
+
+
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "feeder_straight_1D");
+  ros::init(argc, argv, "feeder_policy_drive");
   ros::NodeHandle nh;
 
   tf::TransformListener tf_listener;
@@ -551,9 +612,7 @@ int main(int argc, char **argv)
     local_force_f=force_f;
     lock_force.unlock();
 
-
-
-    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
+    /*if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
     {
       ROS_INFO("---------------------------------------------------------------------");
       driveToRollGoalWithVelocity(ROTATE_UP);
@@ -588,7 +647,7 @@ int main(int argc, char **argv)
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
-    }
+    }*/
 
 
     loop_rate.sleep();
