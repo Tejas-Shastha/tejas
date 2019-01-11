@@ -41,8 +41,8 @@
 #define ARC_DOWN 1
 #define ARC_UP 2
 #define TRANSLATE_BACK 3
-#define ROTATE_DOWN 4
-#define ROTATE_UP 5
+#define RAISE_CUP 4
+#define LOWER_CUP 5
 #define TRANSLATE_UP 6
 #define TRANSLATE_DOWN 7
 #define TRANSLATE_FRONT 8
@@ -50,13 +50,18 @@
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
 #define FORCE_F_1_2_THRESH 0.2
-#define FORCE_F_2_3_THRESH 0.4
+#define FORCE_F_2_3_THRESH 1.0
 #define ROTATION_STEP 10
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
 #define UPPER_FEED_ANGLE_THRESH 140 // was 140
+
+#define ACTION_DOWN 0
+#define ACTION_STAY 1
+#define ACTION_UP 2
+
 
 double lower_angle_thresh = 85;
 float thresh_lin = 0.01;
@@ -172,12 +177,12 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
       twist.twist.linear.x=-VEL_LIN_MAX;
     break;
 
-    case ROTATE_DOWN:
+    case RAISE_CUP:
       ROS_INFO("Rotate down");
       twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
-    case ROTATE_UP:
+    case LOWER_CUP:
       ROS_INFO("Rotate up");
       twist.twist.angular.x=-VEL_ANG_MAX;
     break;
@@ -246,10 +251,10 @@ void positionControlDriveForDirection(int direction, double distance)
 
 void driveToRollGoalWithVelocity(int direction)
 {
-  if(direction == ROTATE_DOWN)
-    ROS_INFO_STREAM("Rotate down");
-  else if (direction == ROTATE_UP)
-    ROS_INFO_STREAM("Rotate up");
+  if(direction == RAISE_CUP)
+    ROS_INFO_STREAM("Raise cup");
+  else if (direction == LOWER_CUP)
+    ROS_INFO_STREAM("Lower cup");
   else
   {
     ROS_ERROR_STREAM("Wrong direction given!!");
@@ -269,7 +274,7 @@ void driveToRollGoalWithVelocity(int direction)
 
   goal_pose = start_pose;
 
-  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==ROTATE_DOWN?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
   tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
   tf::Quaternion q_goal = q_start*q_rot;
 
@@ -455,8 +460,8 @@ void callFallbackTimer(double duration)
   ROS_WARN_STREAM("Time out! Initialising fallback");
  // moveCup(TRANSLATE_BACK);
   fallback();
+  sleep(1);
   ros::shutdown();
-  exit(1);
 }
 
 void fallback()
@@ -556,18 +561,56 @@ std::vector<int> getPolicyFromCsv(std::string file)
     /*
   * A class to read data from a csv file.
   */
+   CSVReader reader(file);
 
+   std::vector<std::vector<std::string> > dataList = reader.getData();
 
-    //TODO: Implement this!! Link : https://thispointer.com/how-to-read-data-from-a-csv-file-in-c/
-
-
-
-
-
-
+   // Print the content of row by row on screen
+   for(std::vector<std::string> vec : dataList)
+   {
+     for(std::string data : vec)
+     {
+      // std::cout<<data << " , ";
+       policy.push_back( std::stoi(data));
+     }
+     std::cout<<std::endl;
+   }
     return policy;
 }
 
+
+int calculateCurrentState(double force, int step)
+{
+  int force_state;
+
+  if (force >= 0 && force < FORCE_F_1_2_THRESH) force_state = 0;
+  else if (force >= FORCE_F_1_2_THRESH && force < FORCE_F_2_3_THRESH) force_state = 1;
+  else force_state = 2;
+
+  int current_state = (3 * step) + force_state;
+
+  return current_state;
+}
+
+
+std::vector<int> selectActivePolicy(std::string algorithm, char** argv)
+{
+  if(algorithm == "pi")
+  {
+    ROS_INFO_STREAM("Using optimal policy for " << algorithm << " from file " << argv[1]);
+    return getPolicyFromCsv(argv[1]);
+  }
+  else if(algorithm == "vi")
+  {
+    ROS_INFO_STREAM("Using optimal policy for " << algorithm << " from file " << argv[2]);
+    return getPolicyFromCsv(argv[2]);
+  }
+  else
+  {
+    ROS_ERROR_STREAM("Wrong algorithm selected. Choices: pi, vi");
+    ros::shutdown();
+  }
+}
 
 
 int main(int argc, char **argv)
@@ -576,6 +619,7 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
 
   tf::TransformListener tf_listener;
+
 
   ros::Subscriber sub = nh.subscribe("/force_values", 1000, forceGrabber);
   cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
@@ -586,9 +630,7 @@ int main(int argc, char **argv)
 
   waitForPoseDataAvailable();
 
-  double local_force_f
-      //,local_force_b
-      ;
+  double local_force_f;
   bool print_once_only=true;
 
   lock_pose.lock();
@@ -600,10 +642,12 @@ int main(int argc, char **argv)
   lower_angle_thresh = r;
   ROS_INFO_STREAM("Lower feed angle thresh set to " << (int)angles::to_degrees(lower_angle_thresh));
 
+  std::vector<int> active_policy = selectActivePolicy(argv[3], argv);
+
   step_count = 0;
   int prev_step_count = 0;
-
   ros::Rate loop_rate(10);
+
   while(ros::ok())
   {
     ros::spinOnce();
@@ -612,54 +656,65 @@ int main(int argc, char **argv)
     local_force_f=force_f;
     lock_force.unlock();
 
-    /*if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
+    int state = calculateCurrentState(force_f, step_count);
+    int action = active_policy[state];
+
+    switch(action)
     {
+      case ACTION_DOWN:
+      if(!checkLowerAngleThreshold())
+      {
+        ROS_WARN_STREAM("LOWER THRESHOLD REACHED!!");
+        break;
+      }
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(ROTATE_UP);
+      ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
+      driveToRollGoalWithVelocity(LOWER_CUP);
       prev_step_count = step_count--;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-      if (prev_step_count == 1 && step_count == 0)
-      {
-        callFallbackTimer(3);
-      }
-    }
+      if (prev_step_count == 1 && step_count == 0) callFallbackTimer(3);
+      break;
 
-    else if (local_force_f >= FORCE_F_2_3_THRESH && checkUpperAngleThreshold())
-    {
+
+
+      case ACTION_STAY:
+      if (print_once_only)
+          {
+            ROS_INFO("---------------------------------------------------------------------");
+            ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
+            ROS_INFO_STREAM("Do nothing.");
+            print_once_only=false;
+            ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+            ROS_INFO("---------------------------------------------------------------------");
+            ROS_INFO(" ");
+          }
+      break;
+
+
+
+      case ACTION_UP:
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(ROTATE_DOWN);
+      ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
+      driveToRollGoalWithVelocity(RAISE_CUP);
       prev_step_count =  step_count++;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
+      break;
     }
-
-    else if (print_once_only)
-    {
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO_STREAM("Do nothing.");
-      print_once_only=false;
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO(" ");
-    }*/
-
 
     loop_rate.sleep();
     std_msgs::Int32 arm_pose_msg;
     arm_pose_msg.data=step_count;
     arm_pose_pub.publish(arm_pose_msg);
 
-    loop_rate.sleep();
 
   }
-
   ros::spinOnce();
-
   return 0;
 }

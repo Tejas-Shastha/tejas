@@ -595,9 +595,6 @@ int main(int argc, char **argv)
     std_msgs::Int32 arm_pose_msg;
     arm_pose_msg.data=step_count;
     arm_pose_pub.publish(arm_pose_msg);
-
-    loop_rate.sleep();
-
   }
 
   ros::spinOnce();

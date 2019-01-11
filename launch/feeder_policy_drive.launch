@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="algorithm" default="pi" />
+
+    <node name="feeder_policy_drive" pkg="tejas" type="feeder_policy_drive" args="$(find tejas)/resources/PI_pi_star.csv $(find tejas)/resources/VI_pi_star.csv $(arg algorithm)" output="screen"/>
+
+</launch>
