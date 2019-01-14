@@ -51,12 +51,13 @@
 #define SENSOR_FRAME "forcesensor"
 #define FORCE_F_1_2_THRESH 0.2
 #define FORCE_F_2_3_THRESH 1.0
-#define ROTATION_STEP 10
+#define NUMBER_OF_ARM_SUB_STATES 5
+
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 140 // was 140
+#define UPPER_FEED_ANGLE_THRESH 140.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1
@@ -66,6 +67,7 @@
 double lower_angle_thresh = 85;
 float thresh_lin = 0.01;
 float thresh_ang = 0.05;
+double rotation_step;
 
 int step_count;
 
@@ -117,7 +119,7 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,d
   {
   /// END EFFECTOR FRAME  Z-forward-blue, Y-up-green, X-left-red
   case ARC_DOWN :
-    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); //Turn down
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(rotation_step),angles::from_degrees(0),angles::from_degrees(0)); //Turn down
     start_pose.header.frame_id=END_EFF_FRAME;
     start_pose.pose.position.x=0;
     start_pose.pose.position.y=0.01;  // Slightly up
@@ -125,7 +127,7 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,d
     start_pose.pose.orientation = quat;
     break;
   case ARC_UP :
-    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0));
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(-rotation_step),angles::from_degrees(0),angles::from_degrees(0));
     start_pose.header.frame_id=END_EFF_FRAME;
     start_pose.pose.position.x=0;
     start_pose.pose.position.y=-0.01;
@@ -274,7 +276,7 @@ void driveToRollGoalWithVelocity(int direction)
 
   goal_pose = start_pose;
 
-  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?rotation_step:-rotation_step),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
   tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
   tf::Quaternion q_goal = q_start*q_rot;
 
@@ -409,7 +411,7 @@ bool checkLowerAngleThreshold()
   double temp_roll, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
 
-  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < ROTATION_STEP/2 )
+  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < rotation_step/2 )
   {
     //ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << angles::to_degrees(temp_roll));
     return false;
@@ -640,9 +642,16 @@ int main(int argc, char **argv)
   double r,p,y;
   getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
   lower_angle_thresh = r;
-  ROS_INFO_STREAM("Lower feed angle thresh set to " << (int)angles::to_degrees(lower_angle_thresh));
 
+
+  rotation_step = (UPPER_FEED_ANGLE_THRESH - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
   std::vector<int> active_policy = selectActivePolicy(argv[3], argv);
+
+  ROS_INFO_STREAM("Lower angle thresh : " << (int)angles::to_degrees(lower_angle_thresh) << ". Upper angle thresh : " << UPPER_FEED_ANGLE_THRESH);
+  ROS_INFO_STREAM("No. of arm substates :" <<  NUMBER_OF_ARM_SUB_STATES << ". Rotation per step: " << rotation_step);
+  ROS_INFO_STREAM("Policy to be used :");
+  for (int action:active_policy) std::cout << action << " ";
+  std::cout << std::endl;
 
   step_count = 0;
   int prev_step_count = 0;
@@ -700,6 +709,11 @@ int main(int argc, char **argv)
 
 
       case ACTION_UP:
+      if(!checkUpperAngleThreshold())
+      {
+        ROS_WARN_STREAM("UPPER THRESHOLD REACHED!!");
+        break;
+      }
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
       driveToRollGoalWithVelocity(RAISE_CUP);

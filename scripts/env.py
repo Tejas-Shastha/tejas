@@ -8,7 +8,7 @@
 import numpy as np
 import pandas as pd 
 
-nS = 30
+nS = 15
 nA = 3
 
 ACTION_DOWN = 0
