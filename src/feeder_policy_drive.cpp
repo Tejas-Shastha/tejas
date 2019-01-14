@@ -670,7 +670,9 @@ int main(int argc, char **argv)
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
       driveToRollGoalWithVelocity(LOWER_CUP);
+      ros::Duration(1.0).sleep(); // Allow inertial settlement
       prev_step_count = step_count--;
+      ros::spinOnce(); // Update subscribed values ie: current pose
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
@@ -688,6 +690,7 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
             ROS_INFO_STREAM("Do nothing.");
             print_once_only=false;
+            ros::spinOnce(); // Update subscribed values ie: current pose
             ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
             ROS_INFO("---------------------------------------------------------------------");
             ROS_INFO(" ");
@@ -700,7 +703,9 @@ int main(int argc, char **argv)
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
       driveToRollGoalWithVelocity(RAISE_CUP);
+      ros::Duration(1.0).sleep(); // Allow inertial settlement
       prev_step_count =  step_count++;
+      ros::spinOnce(); // Update subscribed values ie: current pose
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");

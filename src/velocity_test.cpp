@@ -64,8 +64,8 @@ int main(int argc, char **argv)
   ros::Time start = ros::Time::now();
   ros::Duration runtime(1.0);
 
-  vel_msg.twist_linear_x=-0.2;
-  vel_msg.twist_linear_y=0.2;
+  vel_msg.twist_angular_x= 0.5 ;
+  //vel_msg.twist_linear_y=0.2;
   //vel_msg.twist_linear_x=0.4;
 
   while(ros::Time::now()-start < runtime)
