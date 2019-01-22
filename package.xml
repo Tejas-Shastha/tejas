@@ -5,7 +5,7 @@
 	<description>Package to test robot control modes</description>
 	<maintainer email="tejas.shastha@gmail.com">Tejas Kumar Shastha</maintainer>
   <license>Apache 2.0</license>
-  <author >tejas</author>
+  <author>tejas</author>
 
 	<build_depend>message_generation</build_depend>
 	<build_depend>tf</build_depend>
@@ -27,4 +27,5 @@
     <!-- Other tools can request additional information be placed here -->
 
   </export>
+<build_export_depend>message_generation</build_export_depend>
 </package>

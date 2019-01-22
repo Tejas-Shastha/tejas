@@ -3,7 +3,9 @@
 """ 1. Import this script
 2. Invoke env.buildP()
 3. Then use P as required
-4. Invoke env.printP() to print a nice readable format """
+4. Invoke env.printP() to print a nice readable format 
+5. When done using P, invoke env.scrubP() to empty it so that it can be rebuilt
+"""
 
 import numpy as np
 import pandas as pd 
@@ -29,6 +31,7 @@ TERMINAL_STATES=[nS-1, nS-2, nS-3]
 P = {s : {a : [] for a in range(nA)} for s in range(nS)}
 
 def buildP(terminal_state=True):
+    global P
     for s in range(nS):
         for a in range(nA):
             force = s%3
@@ -87,6 +90,10 @@ def buildP(terminal_state=True):
             P[s][a].append(  (1.0/3.0, s_+2, r3, True if (s_+2   in TERMINAL_STATES or s in TERMINAL_STATES) and terminal_state else False)  )
 
 
+def scrubP():
+    global P
+    P = {s : {a : [] for a in range(nA)} for s in range(nS)}
+
 def printP():
     for s in range(nS):
         for a in P[s]:
@@ -111,6 +118,6 @@ def printPtoTxtFile(path):
                 " a:",  "UP" if a == ACTION_UP else ("DOWN" if a == ACTION_DOWN else "STAY")  , 
                 " :", x, 
                 "Force :",  "UP" if force==FORCE_SAYS_UP else ("DOWN" if force==FORCE_SAYS_DOWN else "STAY")  , 
-                "Arm : ", arm, file=open(path,"a"))
-            print(" ", file=open(path,"a"))
-        print("----------------------", file=open(path,"a"))
+                "Arm : ", arm, open(path,"a"))
+            print(" ", open(path,"a"))
+        print("----------------------", open(path,"a"))

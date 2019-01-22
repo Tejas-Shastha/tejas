@@ -16,6 +16,17 @@ find_package(catkin REQUIRED COMPONENTS
 	tf
 )
 
+
+add_service_files(FILES
+  EnvStep.srv
+)
+
+generate_messages(DEPENDENCIES
+  std_msgs
+)
+
+
+
 catkin_package(
 		CATKIN_DEPENDS
 		message_runtime
@@ -75,4 +86,8 @@ target_link_libraries(quaternion_tester ${catkin_LIBRARIES})
 add_executable(data_extractor src/data_extractor.cpp)
 add_dependencies(data_extractor ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(data_extractor ${catkin_LIBRARIES})
+
+
+
+
 

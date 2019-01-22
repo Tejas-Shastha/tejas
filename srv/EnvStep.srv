@@ -1,0 +1,8 @@
+int64 state
+int64 action
+string terminating
+---
+int64 state_next
+int64 reward
+bool terminal
+string info

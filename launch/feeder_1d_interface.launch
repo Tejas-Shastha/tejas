@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-
-		<node name="feeder_1d_interface" pkg="tejas" type="feeder_1d_interface.py" args="$(find tejas)/resources/reward_table.csv" output="screen"/>
-
-</launch>
