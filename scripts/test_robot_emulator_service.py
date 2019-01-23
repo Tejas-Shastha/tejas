@@ -10,7 +10,7 @@ import random
 print("Example returns for each state*action combination and Terminating model")
 for state in range(15):
     for action in range(3):
-        s_, r, t, i = robot_stepper_client.step(state, action)
+        s_, r, t, i = robot_stepper_client.step(state, action, "True")
         print("S: {} Ar: {} F:{} Ac: {} S_: {} R: {} T: {}".format(state, state//3, state%3, action, s_, r, t))
 
 print("")

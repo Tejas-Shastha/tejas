@@ -1,8 +1,32 @@
 #!/usr/bin/env python
+
+"""
+SERVER OF THE SERVICE :
+Service emulates the robot IE: Given a state and an action, picks a random valid next state
+and returns corresponding (state_next, reward, done, info) tuple.
+
+Run this node as a standalone without any enclosing namespace
+
+@params
+Request
+int64 state         - Current state
+int64 action        - Selected action
+string terminating  - True if using terminating model, else False
+Response
+int64 state_next    - Randomly chosen valid next state
+int64 reward        - Immedeate reward
+bool terminal       - Is done?
+string info         - Additional info
+
+"""
+
 import random
 import rospy
 from tejas.srv import EnvStep, EnvStepResponse
 import env
+
+TERM_P = []
+NON_TERM_P = []
 
 
 def reshape_reward(reward, positive, negative):
@@ -18,15 +42,13 @@ def emulate_step(state, action, terminating):
         print("Faulty EnvStepRequest.terminating")
         return 0, 0, 0, "Faulty EnvStepRequest.terminating"
 
-
-    env.buildP(term)
-    p_distribution = env.P[state][action]       # Stochastic response for given state and action = 3 tuples of 4 elements [s_, r, t, i]
+    P = TERM_P if term else NON_TERM_P
+    p_distribution = P[state][action]       # Stochastic response for given state and action = 3 tuples of 4 elements [s_, r, t, i]
     random_choice = p_distribution[random.choice((0, 1, 2))]    # Randomly determine a single response = 1 tuple of 4 elements [s_, r, t, i]
     state_next = random_choice[1] 
     reward = random_choice[2] if term else reshape_reward(random_choice[2], 3, -3)
     terminal = random_choice[3]
     info = ""
-    env.scrubP()
     return state_next, reward, terminal, info
 
 def step_action(req):
@@ -39,81 +61,18 @@ def step_action(req):
 def robot_emulator_service():
     rospy.init_node("robot_emulator_server")
     emulator_service = rospy.Service("robot_emulator_service", EnvStep, step_action)
+    
+    global TERM_P, NON_TERM_P
+    env.buildP(True)
+    TERM_P = env.P
+    env.scrubP()
+    env.buildP(False)
+    NON_TERM_P = env.P
+    env.scrubP()    
+    
     print("Emulator running")
     rospy.spin()
 
 
 if __name__ == "__main__":
     robot_emulator_service()
-
-
-# Backup : Alternate s_, r, t rules :
-
-# FORCE_F_1_2_THRESH = 0.5
-# FORCE_F_2_3_THRESH = 1.0
-
-# ROTATE_FEED = 1
-# ROTATE_DONT_FEED = 2
-
-# # UPPER_FEED_ANGLE_THRESH = 140 # was 140
-# NUMBER_OF_ARM_SUB_STATES = 5
-
-# # LOWER_ANGLE_THRESH = 85
-
-# ACTION_DOWN = 0
-# ACTION_STAY = 1
-# ACTION_UP = 2
-
-# FORCE_SAYS_DOWN = 0
-# FORCE_SAYS_STAY = 1
-# FORCE_SAYS_UP = 2
-
-# INTERMEDEATE_POSITIVE_REWARD = -1
-# INTERMEDEATE_NEGATIVE_REWARD = -3
-
-
-
-
-    # # General states rewards
-    # if force == action:
-    #     reward = INTERMEDEATE_POSITIVE_REWARD
-    # else:
-    #     reward = INTERMEDEATE_POSITIVE_REWARD
-    
-    # # Border states rewards modification
-    # if arm == 0 and (force == FORCE_SAYS_DOWN or force == FORCE_SAYS_STAY):
-    #     if action == ACTION_STAY:
-    #         reward = INTERMEDEATE_POSITIVE_REWARD
-    #     else:
-    #         reward = INTERMEDEATE_NEGATIVE_REWARD
-    # if arm == NUMBER_OF_ARM_SUB_STATES-1 and (force == FORCE_SAYS_STAY or force == FORCE_SAYS_UP):
-    #     if action == ACTION_STAY:
-    #         reward = INTERMEDEATE_POSITIVE_REWARD
-    #     else:
-    #         reward = INTERMEDEATE_NEGATIVE_REWARD
-
-    
-    # if action == ACTION_DOWN:
-    #     if arm == 0:
-    #         arm_new = 0
-    #     else:
-    #         arm_new = arm - 1
-    # if action == ACTION_STAY:
-    #     arm_new = arm
-    # if action == ACTION_UP:
-    #     if arm == NUMBER_OF_ARM_SUB_STATES-1:
-    #         arm_new = arm
-    #     else:
-    #         arm_new = arm +1
-    
-    # forces_list = (0, 1, 2)
-    # force_new = random.choice(forces_list)
-
-    # state_next = (3 * arm_new) + force_new
-
-    # if arm_new == NUMBER_OF_ARM_SUB_STATES-1:
-    #     terminal = True
-    # else:
-    #     terminal = False  
-    
-    # info = ""

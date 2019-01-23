@@ -1,9 +1,20 @@
 #!/usr/bin/env python
-""" https://www.kaggle.com/angps95/intro-to-reinforcement-learning-with-openai-gym """
+""" 
+https://www.kaggle.com/angps95/intro-to-reinforcement-learning-with-openai-gym 
 
+REQUIRES:
+env.py in the same directory
+
+OUTPUTS:
+The optimal policies as calculated by the PI and VI algorithms on screen and as .csv files
+If run through launch file, .csv files go to tejas/resources directory, else .csv files go to same directory as script
+"""
+
+import sys
 import numpy as np 
 import env
 import csv
+import csv_interface
 
 def policy_eval(policy, discount_factor=1.0, theta=0.00001):
     """
@@ -159,24 +170,24 @@ def policyMatrixToVector(policy):
         policy_vector.append(np.argmax(array))
     return policy_vector
     
-def writePolicyArrayToCsv(path, policy):
-    print("Writing policy to", path)
-    with open(path, mode='w') as policy_file:
-        writer = csv.writer(policy_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(policy)
+# def writePolicyArrayToCsv(path, policy):
+#     print("Writing policy to", path)
+#     with open(path, mode='w') as policy_file:
+#         writer = csv.writer(policy_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+#         writer.writerow(policy)
 
-def readPolicyFromCsv(path):
-    arrays = []
-    with open(path) as policy_file:
-        reader = csv.reader(policy_file, delimiter=',')
-        for row in reader:
-            arrays.append(row)
+# def readPolicyFromCsv(path):
+#     arrays = []
+#     with open(path) as policy_file:
+#         reader = csv.reader(policy_file, delimiter=',')
+#         for row in reader:
+#             arrays.append(row)
     
-    intarrays = []
-    for row in arrays:
-        for val in row:
-            intarrays.append(int(val))
-    return intarrays
+    # intarrays = []
+    # for row in arrays:
+    #     for val in row:
+    #         intarrays.append(int(val))
+    # return intarrays
 
 env.buildP(terminal_state=False)
 
@@ -199,5 +210,20 @@ print(vi_pi_star) # This is the output policy
 print("PI pi*: ")
 print(pi_pi_star) # This is the output policy
 
-writePolicyArrayToCsv("VI_pi_star.csv",vi_pi_star)
-writePolicyArrayToCsv("PI_pi_star.csv",pi_pi_star)
+
+
+if len(sys.argv) == 5:
+    VI_pi_star_file = sys.argv[1]
+    PI_pi_star_file = sys.argv[2]
+    print("Saving VI_pi_star to : {}".format(VI_pi_star_file))
+    print("Saving PI_pi_star to : {}".format(PI_pi_star_file))
+else:
+    VI_pi_star_file = "VI_pi_star.csv"
+    PI_pi_star_file = "PI_pi_star.csv"        
+    print("Saving VI_pi_star to : {}".format(VI_pi_star_file))
+    print("Saving PI_pi_star to : {}".format(PI_pi_star_file))
+
+
+
+csv_interface.writePolicyArrayToCsv(VI_pi_star_file, vi_pi_star)
+csv_interface.writePolicyArrayToCsv(PI_pi_star_file, pi_pi_star)

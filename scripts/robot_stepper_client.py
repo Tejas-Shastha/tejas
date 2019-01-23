@@ -1,16 +1,38 @@
 #!/usr/bin/env python
 
+"""
+CLIENT OF THE SERVICE :
+Service emulates the robot IE: Given a state and an action, picks a random valid next state
+and returns corresponding (state_next, reward, done, info) tuple.
+
+This is intended to be included in other scripts where the .step() function performs a service call
+Terminal execution performs a test call based on runtime arguments
+
+@params of service
+Request
+int64 state         - Current state
+int64 action        - Selected action
+string terminating  - True if using terminating model, else False
+Response
+int64 state_next    - Randomly chosen valid next state
+int64 reward        - Immedeate reward
+bool terminal       - Is done?
+string info         - Additional info
+
+"""
+
 import sys
 import rospy
 from tejas.srv import EnvStep
 
 
 
-def step(state, action, terminating="True"):
+def step(state, action, terminating="False"):
     """
     @params
     state - input state
     action - input action
+    terminating - use terminating model if true, else use non terminating model
     s_ - next state
     r - reward
     t - if terminal

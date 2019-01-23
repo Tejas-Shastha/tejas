@@ -1,10 +1,30 @@
 #!/usr/bin/env python
 
-""" 1. Import this script
+""" 
+1. Import this script
 2. Invoke env.buildP()
 3. Then use P as required
-4. Invoke env.printP() to print a nice readable format 
+4. Invoke env.printP() to print a nice readable format
 5. When done using P, invoke env.scrubP() to empty it so that it can be rebuilt
+
+
+TERMINATING MODEL (terminal_state == True)
+Terminating states
+    Reward GOAL_REWARD_POSITIVE for reaching or staying in final arm pose (for the correct action) 
+Pre-terminating states
+    Reward GOAL_REWARD_POSITIVE for reaching the final arm pose (action up) 
+Starting states
+    Reward ACTION_REWARD_POSITIVE for staying or leaving initial arm pose (for the correct action) 
+Other states
+    Reward ACTION_REWARD_POSITIVE for action matching force, else ACTION_REWARD_NEGATIVE
+
+NON-TERMINATING MODEL (terminal_state == False)
+Final arm pose states
+    Reward ACTION_REWARD_POSITIVE for staying (action down or stay) in or leaving final arm pose (action up) 
+Initial arm state
+    Reward ACTION_REWARD_POSITIVE for staying in (action up or stay) or leaving initial arm pose (action up) 
+Other states
+    Reward ACTION_REWARD_POSITIVE for action matching force, else ACTION_REWARD_NEGATIVE
 """
 
 import numpy as np

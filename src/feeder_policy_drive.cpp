@@ -607,9 +607,14 @@ std::vector<int> selectActivePolicy(std::string algorithm, char** argv)
     ROS_INFO_STREAM("Using optimal policy for " << algorithm << " from file " << argv[2]);
     return getPolicyFromCsv(argv[2]);
   }
+  else if(algorithm == "q")
+  {
+    ROS_INFO_STREAM("Using optimal policy for " << algorithm << " from file " << argv[2]);
+    return getPolicyFromCsv(argv[3]);
+  }
   else
   {
-    ROS_ERROR_STREAM("Wrong algorithm selected. Choices: pi, vi");
+    ROS_ERROR_STREAM("Wrong algorithm selected. Choices: pi, vi, q");
     ros::shutdown();
   }
 }
@@ -645,7 +650,7 @@ int main(int argc, char **argv)
 
 
   rotation_step = (UPPER_FEED_ANGLE_THRESH - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
-  std::vector<int> active_policy = selectActivePolicy(argv[3], argv);
+  std::vector<int> active_policy = selectActivePolicy(argv[4], argv);
 
   ROS_INFO_STREAM("Lower angle thresh : " << (int)angles::to_degrees(lower_angle_thresh) << ". Upper angle thresh : " << UPPER_FEED_ANGLE_THRESH);
   ROS_INFO_STREAM("No. of arm substates :" <<  NUMBER_OF_ARM_SUB_STATES << ". Rotation per step: " << rotation_step);
