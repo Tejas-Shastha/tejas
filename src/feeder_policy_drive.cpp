@@ -57,7 +57,7 @@
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
+#define UPPER_FEED_ANGLE_THRESH 200.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1
@@ -295,6 +295,9 @@ void driveToRollGoalWithVelocity(int direction)
     getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
     getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
 
+    if (goal_rol < 0 ) goal_rol = goal_rol + angles::from_degrees(360);
+    if (temp_rol < 0 ) temp_rol = temp_rol + angles::from_degrees(360);
+
     del_rol = goal_rol - temp_rol;
 
     if (std::fabs(del_rol)>=thresh_ang)
@@ -433,7 +436,8 @@ double getCurrentRoll()
   double temp_rol, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pitch, temp_yaw);
 
-  return temp_rol;
+
+  return temp_rol<0?temp_rol+angles::from_degrees(360):temp_rol;
 }
 
 void fallback();
@@ -655,7 +659,7 @@ int main(int argc, char **argv)
   lower_angle_thresh = r;
 
 
-  rotation_step = (UPPER_FEED_ANGLE_THRESH+NUMBER_OF_ARM_SUB_STATES - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
+  rotation_step = (UPPER_FEED_ANGLE_THRESH - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
 
 
   std::vector<int> active_policy = selectActivePolicy(argv[5], argv);

@@ -179,6 +179,9 @@ void driveToRollGoalWithVelocity(int direction)
     getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
     getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
 
+    if (goal_rol < 0 ) goal_rol = goal_rol + angles::from_degrees(360);
+    if (temp_rol < 0 ) temp_rol = temp_rol + angles::from_degrees(360);
+
     del_rol = goal_rol - temp_rol;
 
     if (std::fabs(del_rol)>=thresh_ang)
@@ -191,7 +194,7 @@ void driveToRollGoalWithVelocity(int direction)
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
 
-      //ROS_INFO_STREAM("Roll: " << angles::to_degrees(temp_rol)  << " Delta: " << del_rol << " Vel.roll : " << twist_msg.twist.angular.x);
+      ROS_INFO_STREAM("goal_rol: " << angles::to_degrees(goal_rol) << " temp_rol : " << angles::to_degrees(temp_rol) << " del_rol: " << del_rol);
       cmd_vel.publish(twist_msg);
     }
     else
