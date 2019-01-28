@@ -11,6 +11,8 @@ env.py, csv_interface.py and robot_stepper_clinet.py in the same directory
 OUTPUTS:
 The fully trained Q table and the relevant policy on screen and as .csv files in the same directory
 If run through launch file, .csv files go to tejas/resources directory, else .csv files go to same directory as script
+
+https://medium.com/swlh/introduction-to-reinforcement-learning-coding-sarsa-part-4-2d64d6e37617
 """
 
 import sys
@@ -25,8 +27,8 @@ if len(sys.argv) == 6:
     q_policy_file = sys.argv[2]
     total_episodes = int(sys.argv[3])
 else:
-    q_table_file = "Q_table.csv"
-    q_policy_file = "Q_policy.csv"
+    q_table_file = "SARSA_table.csv"
+    q_policy_file = "SARSA_policy.csv"
     total_episodes = 100          
     
 print("Running for {} episodes".format(total_episodes))
@@ -40,7 +42,7 @@ gamma = 0.1
 epsilon = 1.0                 
 max_epsilon = 1.0             
 min_epsilon = 0.01            
-decay_rate = 0.005            
+decay_rate = 0.01            
 
 # Environment variables
 action_size = env.nA
@@ -61,23 +63,35 @@ for episode in range(total_episodes):
     exploited = 0
     max_variation = 0
 
+    exp_exp_tradeoff = random.uniform(0, 1)
+    if exp_exp_tradeoff > epsilon:
+        action = np.argmax(qtable[state,:])
+        exploited += 1
+    else:
+        action = random.choice(action_list)
+        explored += 1
+
+
     for step in range(max_steps):
-        exp_exp_tradeoff = random.uniform(0, 1)
-        if exp_exp_tradeoff > epsilon:
-            action = np.argmax(qtable[state,:])
-            exploited += 1
-        else:
-            action = random.choice(action_list)
-            explored += 1
         
         new_state, reward, done, info = robot_stepper_client.step(state, action, "False")
         
-        qtable_new[state, action] = qtable[state, action] + learning_rate * (reward + gamma * np.max(qtable[new_state, :]) - qtable[state, action])
+        exp_exp_tradeoff = random.uniform(0, 1)
+        if exp_exp_tradeoff > epsilon:
+            new_action = np.argmax(qtable[new_state,:])
+            exploited += 1
+        else:
+            new_action = random.choice(action_list)
+            explored += 1
+        
+        
+        qtable_new[state, action] = qtable[state, action] + learning_rate * (reward + gamma * (qtable[new_state,new_action ]) - qtable[state, action])
         delta = abs (qtable_new[state, action] - qtable[state, action])
         max_variation = max(max_variation, delta)
         qtable[state, action] = qtable_new[state, action]
 
         state = new_state
+        action = new_action
         total_rewards += reward
 
         if done: 
@@ -88,6 +102,7 @@ for episode in range(total_episodes):
         print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
         print(qtable)
         print("")
+
 
     epsilon = min_epsilon + (max_epsilon - min_epsilon)*np.exp(-decay_rate*episode) 
 
@@ -103,7 +118,7 @@ for row in qtable:
 print("Extracted policy :")
 print(policy)
 
-print("Saving q policy to : {}".format(q_policy_file))
+print("Saving sarsa policy to : {}".format(q_policy_file))
 csv_interface.writeQTableToCsv(q_table_file, qtable)
-print("Saving q table to : {}".format(q_table_file))
+print("Saving sarsa table to : {}".format(q_table_file))
 csv_interface.writePolicyArrayToCsv(q_policy_file, policy)

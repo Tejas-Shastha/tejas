@@ -1,9 +1,11 @@
 <?xml version="1.0"?>
 <launch>
+    <!--include file="$(find tejas)/launch/drink_motion.launch" /-->
 
     <arg name="algorithm" default="pi" />
 
     <node name="feeder_policy_drive" pkg="tejas" type="feeder_policy_drive"
-        args="$(find tejas)/resources/PI_pi_star.csv $(find tejas)/resources/VI_pi_star.csv $(find tejas)/resources/Q_policy.csv $(arg algorithm)" output="screen"/>
+        args="$(find tejas)/resources/PI_pi_star.csv $(find tejas)/resources/VI_pi_star.csv 
+        $(find tejas)/resources/Q_policy.csv $(find tejas)/resources/SARSA_policy.csv $(arg algorithm)" output="screen"/>
 
 </launch>

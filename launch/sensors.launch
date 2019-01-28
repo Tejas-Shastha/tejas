@@ -1,10 +1,13 @@
 <?xml version="1.0"?>
 <launch>
 
-	<!-- Start the force sensors. If not working, check port name, battery in cup, connector pins and reconnect everything in order CUP->PC -->
-  <node pkg="rosserial_python" type="serial_node.py" name="force_rosserial" output="screen">
-		<param name="port" value="/dev/ttyUSB0" />
-    <param name="baud" value="230400" />
-  </node>
+    <arg name="port" default="1"/>
+    <arg name="usb_port" default="/dev/ttyUSB$(arg port)" />
+
+    <!-- Start the force sensors. If not working, check port name, battery in cup, connector pins and reconnect everything in order CUP->PC -->
+    <node pkg="rosserial_python" type="serial_node.py" name="force_rosserial" output="screen">
+        <param name="port" value="$(arg usb_port)" />
+        <param name="baud" value="230400" />
+    </node>
 
 </launch>
