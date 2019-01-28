@@ -49,15 +49,15 @@
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_1_2_THRESH 0.2
-#define FORCE_F_2_3_THRESH 0.6
-#define NUMBER_OF_ARM_SUB_STATES 5
+#define FORCE_F_1_2_THRESH 0.1
+#define FORCE_F_2_3_THRESH 0.4
+#define NUMBER_OF_ARM_SUB_STATES 10
 
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 140.00 // was 140
+#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1
@@ -299,10 +299,11 @@ void driveToRollGoalWithVelocity(int direction)
 
     if (std::fabs(del_rol)>=thresh_ang)
     {
+      float linear_vel = 0.02;
       geometry_msgs::TwistStamped twist_msg;
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
-      twist_msg.twist.linear.z = 0;
+      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
@@ -411,7 +412,7 @@ bool checkLowerAngleThreshold()
   double temp_roll, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
 
-  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < rotation_step/2 )
+  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < rotation_step/2 && temp_roll > 0)
   {
     //ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << angles::to_degrees(temp_roll));
     return false;
@@ -654,11 +655,14 @@ int main(int argc, char **argv)
   lower_angle_thresh = r;
 
 
-  rotation_step = (UPPER_FEED_ANGLE_THRESH - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
+  rotation_step = (UPPER_FEED_ANGLE_THRESH+NUMBER_OF_ARM_SUB_STATES - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
+
+
   std::vector<int> active_policy = selectActivePolicy(argv[5], argv);
 
   ROS_INFO_STREAM("Lower angle thresh : " << (int)angles::to_degrees(lower_angle_thresh) << ". Upper angle thresh : " << UPPER_FEED_ANGLE_THRESH);
-  ROS_INFO_STREAM("No. of arm substates :" <<  NUMBER_OF_ARM_SUB_STATES << ". Rotation per step: " << rotation_step);
+  ROS_INFO_STREAM("No. of arm substates :" <<  NUMBER_OF_ARM_SUB_STATES << ". Rotation per step: " << rotation_step << " Max roll : "
+                  << angles::to_degrees(lower_angle_thresh) + (rotation_step * (NUMBER_OF_ARM_SUB_STATES-1))) ;
   ROS_INFO_STREAM("Policy to be used :");
   for (int action:active_policy) std::cout << action << " ";
   std::cout << std::endl;
