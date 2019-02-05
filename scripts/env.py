@@ -20,9 +20,9 @@ Other states
 
 NON-TERMINATING MODEL (terminal_state == False)
 Final arm pose states
-    Reward ACTION_REWARD_POSITIVE for staying (action down or stay) in or leaving final arm pose (action up) 
+    Reward ACTION_REWARD_POSITIVE for staying (action up or stay) in or leaving final arm pose (action down) 
 Initial arm state
-    Reward ACTION_REWARD_POSITIVE for staying in (action up or stay) or leaving initial arm pose (action up) 
+    Reward ACTION_REWARD_POSITIVE for staying in (action down or stay) or leaving initial arm pose (action up) 
 Other states
     Reward ACTION_REWARD_POSITIVE for action matching force, else ACTION_REWARD_NEGATIVE
 """
@@ -30,7 +30,7 @@ Other states
 import numpy as np
 import pandas as pd 
 
-nS = 15
+nS = 30
 nA = 3
 
 ACTION_DOWN = 0
@@ -50,7 +50,7 @@ TERMINAL_STATES=[nS-1, nS-2, nS-3]
 
 P = {s : {a : [] for a in range(nA)} for s in range(nS)}
 
-def buildP(terminal_state=True):
+def buildP(terminal_state=False):
     global P
     for s in range(nS):
         for a in range(nA):
@@ -87,7 +87,13 @@ def buildP(terminal_state=True):
 
             #Arm in final position
             if (arm ==  int((nS/3))-1):
-                s_ = nS-3
+                if (a == ACTION_UP):
+                    s_ = s - force
+                elif (a == ACTION_STAY):
+                    s_ = s - force
+                else:
+                    s_ = (s - force) - 3
+                    
                 if terminal_state:
                     r = GOAL_REWARD_POSITIVE if a == ACTION_STAY else ACTION_REWARD_NEGATIVE
                 else:

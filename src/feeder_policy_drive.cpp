@@ -57,7 +57,7 @@
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 200.00 // was 140
+#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1

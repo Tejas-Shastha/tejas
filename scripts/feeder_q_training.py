@@ -104,6 +104,6 @@ print("Extracted policy :")
 print(policy)
 
 print("Saving q policy to : {}".format(q_policy_file))
-csv_interface.writeQTableToCsv(q_table_file, qtable)
-print("Saving q table to : {}".format(q_table_file))
 csv_interface.writePolicyArrayToCsv(q_policy_file, policy)
+print("Saving q table to : {}".format(q_table_file))
+csv_interface.writeQTableToCsv(q_table_file, qtable)
