@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-# Training done here using vector as input. Works.
-
 import sys
 import random
 import env

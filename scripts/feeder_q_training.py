@@ -84,9 +84,13 @@ for episode in range(total_episodes):
             break
         
     if episode%10 == 0: 
+        print(qtable)
+        policy = []
+        for row in qtable:
+            policy.append(np.argmax(row))
+        print(policy)
         print("Episode #{}".format(episode))
         print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
-        print(qtable)
         print("")
 
     epsilon = min_epsilon + (max_epsilon - min_epsilon)*np.exp(-decay_rate*episode) 

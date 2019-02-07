@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-# Training done here using vector as input. Works.
+# Training done here using single input. Does not work.
 
-import sys
 import random
 import env
 import robot_stepper_client
@@ -13,7 +12,6 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import model_from_json
-import time
 
 GAMMA = 0.1
 LEARNING_RATE = 0.001
@@ -37,7 +35,7 @@ class DQNSolver:
     def build_fresh(self):
         self.model = Sequential()
         self.model.add(Dense(24, 
-                        input_dim=self.observation_space, # 1D = nS
+                        input_dim=1, # 1D = nS
                         activation="relu"))
         self.model.add(Dense(24, activation="relu"))
         self.model.add(Dense(24, activation="relu"))
@@ -63,19 +61,18 @@ class DQNSolver:
             if not terminal:
                 q_update = (reward + GAMMA * np.amax(self.model.predict(state_next)[0]))
             q_values = self.model.predict(state)
-            q_values[0][action] = q_update
+            # q_values[0][action] = q_update
+            print(state, q_values)
             self.model.fit(state, q_values, verbose=0)
         self.exploration_rate *= EXPLORATION_DECAY
         self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
 
-    def save_model(self, json_file, weights_file):
+    def save_model(self):
         model_json = self.model.to_json()
-        json_file_name = json_file
-        with open(json_file,"w") as json_file:
+        with open("feeder_dqn.json","w") as json_file:
             json_file.write(model_json)
-        self.model.save_weights(weights_file)
-        print("Saved model to {}".format(json_file_name))
-        print("Saved weights to {}".format(weights_file))
+        self.model.save_weights("feeder_dqn.h5")
+        print("Saved model and weights")
 
     def load_model(self):
         json_file = open('feeder_dqn.json', 'r')
@@ -90,53 +87,28 @@ class DQNSolver:
         self.train_mode = False
         return loaded_model
     
-    def getQTable(self, verbose=False):
+    def getQTable(self):
         policy = []
         q_table=[]
         for state in range(env.nS):
-            state_vector = np.zeros(self.observation_space)
-            state_vector[state] = 1
-            state_vector = np.reshape(state_vector,[1,self.observation_space])
-            q_values = self.model.predict(state_vector)
-            if verbose:
-                print("S:{} Q:{}".format(state,q_values[0]))
+            state = np.reshape(state,[1,1])
+            q_values = self.model.predict(state)
+            print("S:{} Q:{}".format(state,q_values[0]))
             policy.append(np.argmax(q_values[0]))
             q_table.append(q_values)
                
-        if verbose:
-            print("Optimum policy: ")
-            print(policy)
+        print(policy)
         return q_table, policy
 
     
-    def saveResults(self, policy_file, json_file, weights_file):
-        qtable, policy = self.getQTable(verbose=False)
-        self.save_model(json_file,weights_file)
-        print("Saving DQN policy to : {}".format(policy_file))
-        csv_interface.writePolicyArrayToCsv(policy_file, policy)
+    # def savePolicy(self):
+    #     qtable = np.zeros((self.observation_space, self.action_space))
+    #     for state in range(self.observation_space):
+    #         qtable[state] = self.model.predict()
+
+
 
 def feeder():
-    if len(sys.argv) == 8:
-        dqn_policy_file = sys.argv[1]
-        dqn_json_file = sys.argv[2]
-        dqn_weights_file = sys.argv[3]
-        STEPS_PER_EPISODE = int(sys.argv[5])
-        total_episodes = int(sys.argv[4]) / STEPS_PER_EPISODE
-    else:
-        dqn_policy_file = "DQN_policy.csv"
-        dqn_json_file = "DQN_model.json"
-        dqn_weights_file = "DQN_model.h5"
-        STEPS_PER_EPISODE = 50
-        total_episodes = 10 * STEPS_PER_EPISODE
-    
-    print("")
-    print("Save space:")
-    print(" Policy - {}".format(dqn_policy_file))
-    print(" Model.json - {}".format(dqn_json_file))
-    print(" Model.weights - {}".format(dqn_weights_file))
-    print("Running for {} episodes".format(total_episodes*STEPS_PER_EPISODE))
-    time.sleep(1)
-
     observation_space = env.nS
     action_space = env.nA
     state_list = range(0, observation_space)
@@ -147,28 +119,25 @@ def feeder():
     states_visited = np.zeros(dqn_solver.observation_space)
     episode = 0
     
-    for episode in range(total_episodes):
-        # episode += 1
+    while episode in range(100):
+        episode += 1
         state = random.choice(state_list)
         
         run = 0
         total_reward = 0
-        for run in range(STEPS_PER_EPISODE):
-            # run += 1            
-            state_vector = np.zeros(dqn_solver.observation_space)
-            state_vector[state] = 1
-            state_vector = np.reshape(state_vector,[1,dqn_solver.observation_space])
+        while run in range(100):
+            run += 1
+            
+            state = np.reshape(state,[1,1])
 
             states_visited[state] += 1
-            action = dqn_solver.act(state_vector)
+            action = dqn_solver.act(state)
             state_next, reward, terminal, info = robot_stepper_client.step(state, action, "False")
-            state_next = np.reshape(state_next,[1,])
-            
+            state_next = np.reshape(state_next,[1,1])
+            reward = reward # negate rewards since model has all negative rewards
+
             if dqn_solver.train_mode:
-                state_next_vector = np.zeros(dqn_solver.observation_space)
-                state_next_vector[state_next] = 1
-                state_next_vector = np.reshape(state_next_vector,[1,dqn_solver.observation_space])
-                dqn_solver.remember(state_vector, action, reward, state_next_vector, terminal)
+                dqn_solver.remember(state, action, reward, state_next, terminal)
             state = state_next
             total_reward += reward
             if dqn_solver.train_mode:
@@ -176,18 +145,16 @@ def feeder():
 
         print("")
         print("")
-        dqn_solver.getQTable(verbose=True)
-        print("Ep: {} Tot_rew:{} eps.{}".format((episode+1)*STEPS_PER_EPISODE, total_reward, dqn_solver.exploration_rate))
-        print("States visited :", states_visited)
+        dqn_solver.getQTable()
+        print("Ep:{} Tot_rew:{} eps.{}".format(episode, total_reward, dqn_solver.exploration_rate))
+        # print("States visited :", states_visited)
 
+    if dqn_solver.train_mode:
+        dqn_solver.save_model()
     print("")
     print("Q Table: ")
-    dqn_solver.getQTable(verbose=True)
-
-    print("")
-    if dqn_solver.train_mode:
-        dqn_solver.saveResults(dqn_policy_file,dqn_json_file,dqn_weights_file)
-        print("")
+    dqn_solver.getQTable()
+    
 
 if __name__=="__main__":
     feeder()
