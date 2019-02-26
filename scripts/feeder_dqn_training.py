@@ -14,6 +14,7 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import model_from_json
 import time
+import numpy as np
 
 GAMMA = 0.1
 LEARNING_RATE = 0.001
@@ -24,6 +25,8 @@ BATCH_SIZE = 20
 EXPLORATION_MAX = 1.0
 EXPLORATION_MIN = 0.1
 EXPLORATION_DECAY = 0.995
+
+DELTA = 0
 
 class DQNSolver:
 
@@ -63,10 +66,15 @@ class DQNSolver:
             if not terminal:
                 q_update = (reward + GAMMA * np.amax(self.model.predict(state_next)[0]))
             q_values = self.model.predict(state)
+            q_variation = q_values[0][action] - q_update
+            global DELTA
+            DELTA = min(DELTA, abs(q_variation))
+            # print("Q_old: {} q_new: {} loss: {}".format(q_values[0][action], q_update, q_variation**2))
             q_values[0][action] = q_update
             self.model.fit(state, q_values, verbose=0)
         self.exploration_rate *= EXPLORATION_DECAY
         self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
+        return q_variation**2
 
     def save_model(self, json_file, weights_file):
         model_json = self.model.to_json()
@@ -116,25 +124,27 @@ class DQNSolver:
         csv_interface.writePolicyArrayToCsv(policy_file, policy)
 
 def feeder():
-    if len(sys.argv) == 8:
+    if len(sys.argv) == 9:
         dqn_policy_file = sys.argv[1]
         dqn_json_file = sys.argv[2]
         dqn_weights_file = sys.argv[3]
         STEPS_PER_EPISODE = int(sys.argv[5])
         total_episodes = int(sys.argv[4]) / STEPS_PER_EPISODE
+        loss_threshold = float(sys.argv[6])
     else:
         dqn_policy_file = "DQN_policy.csv"
         dqn_json_file = "DQN_model.json"
         dqn_weights_file = "DQN_model.h5"
         STEPS_PER_EPISODE = 50
         total_episodes = 10 * STEPS_PER_EPISODE
+        loss_threshold= 0.005
     
     print("")
     print("Save space:")
     print(" Policy - {}".format(dqn_policy_file))
     print(" Model.json - {}".format(dqn_json_file))
     print(" Model.weights - {}".format(dqn_weights_file))
-    print("Running for {} episodes".format(total_episodes*STEPS_PER_EPISODE))
+    print("Running for {} episodes until loss of {}".format(total_episodes*STEPS_PER_EPISODE, loss_threshold))
     time.sleep(1)
 
     observation_space = env.nS
@@ -153,6 +163,7 @@ def feeder():
         
         run = 0
         total_reward = 0
+        avg_loss = 0.0
         for run in range(STEPS_PER_EPISODE):
             # run += 1            
             state_vector = np.zeros(dqn_solver.observation_space)
@@ -172,13 +183,22 @@ def feeder():
             state = state_next
             total_reward += reward
             if dqn_solver.train_mode:
-                dqn_solver.experience_replay()
+                loss = dqn_solver.experience_replay()
+                # print("loss :", loss)
+                if loss>0:
+                    avg_loss = (avg_loss+loss)/2
+        # print("Avg_loss : {}".format(avg_loss))
 
         print("")
-        print("")
-        dqn_solver.getQTable(verbose=True)
-        print("Ep: {} Tot_rew:{} eps.{}".format((episode+1)*STEPS_PER_EPISODE, total_reward, dqn_solver.exploration_rate))
-        print("States visited :", states_visited)
+        # print("")
+        # dqn_solver.getQTable(verbose=True)
+        table, policy = dqn_solver.getQTable(verbose=False)
+        print("Ep: {} Tot_rew:{} eps:{} avg_loss {}".format((episode+1)*STEPS_PER_EPISODE, total_reward, dqn_solver.exploration_rate, avg_loss))
+        print("Optimum policy: {}".format(policy))
+        if avg_loss <= loss_threshold:
+            print("Loss threshold satisfied, breaking!")
+            break
+        # print("States visited :", states_visited)
 
     print("")
     print("Q Table: ")
