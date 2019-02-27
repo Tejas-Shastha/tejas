@@ -23,8 +23,8 @@ MEMORY_SIZE = 1000000
 BATCH_SIZE = 20
 
 EXPLORATION_MAX = 1.0
-EXPLORATION_MIN = 0.1
-EXPLORATION_DECAY = 0.995
+EXPLORATION_MIN = 0.01
+EXPLORATION_DECAY = 0.1
 
 DELTA = 0
 
@@ -50,6 +50,9 @@ class DQNSolver:
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
+    
+    def clearMemory(self):
+        self.memory = deque(maxlen=MEMORY_SIZE)
 
     def act(self, state):
         if np.random.rand() < self.exploration_rate and self.train_mode:
@@ -57,7 +60,7 @@ class DQNSolver:
         q_values = self.model.predict(state)
         return np.argmax(q_values[0])
 
-    def experience_replay(self):
+    def experience_replay(self, episode):
         if len(self.memory) < BATCH_SIZE:
             return
         batch = random.sample(list(self.memory), BATCH_SIZE)
@@ -69,11 +72,9 @@ class DQNSolver:
             q_variation = q_values[0][action] - q_update
             global DELTA
             DELTA = min(DELTA, abs(q_variation))
-            # print("Q_old: {} q_new: {} loss: {}".format(q_values[0][action], q_update, q_variation**2))
             q_values[0][action] = q_update
             self.model.fit(state, q_values, verbose=0)
-        self.exploration_rate *= EXPLORATION_DECAY
-        self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
+        self.exploration_rate = EXPLORATION_MIN + (EXPLORATION_MAX - EXPLORATION_MIN)*np.exp(-EXPLORATION_DECAY*episode) 
         return q_variation**2
 
     def save_model(self, json_file, weights_file):
@@ -117,20 +118,22 @@ class DQNSolver:
         return q_table, policy
 
     
-    def saveResults(self, policy_file, json_file, weights_file):
+    def saveResults(self, policy_file, json_file, weights_file, performance_file):
         qtable, policy = self.getQTable(verbose=False)
         self.save_model(json_file,weights_file)
         print("Saving DQN policy to : {}".format(policy_file))
         csv_interface.writePolicyArrayToCsv(policy_file, policy)
+        print("Saving DQN performance to: {}".format(performance_file))
 
 def feeder():
-    if len(sys.argv) == 9:
+    if len(sys.argv) == 10:
         dqn_policy_file = sys.argv[1]
         dqn_json_file = sys.argv[2]
         dqn_weights_file = sys.argv[3]
         STEPS_PER_EPISODE = int(sys.argv[5])
-        total_episodes = int(sys.argv[4]) / STEPS_PER_EPISODE
+        total_episodes = int(sys.argv[4])
         loss_threshold = float(sys.argv[6])
+        dqn_performance_file = sys.argv[7]
     else:
         dqn_policy_file = "DQN_policy.csv"
         dqn_json_file = "DQN_model.json"
@@ -138,13 +141,14 @@ def feeder():
         STEPS_PER_EPISODE = 50
         total_episodes = 10 * STEPS_PER_EPISODE
         loss_threshold= 0.005
+        dqn_performance_file = "DQN_performance.csv"
     
     print("")
     print("Save space:")
     print(" Policy - {}".format(dqn_policy_file))
     print(" Model.json - {}".format(dqn_json_file))
     print(" Model.weights - {}".format(dqn_weights_file))
-    print("Running for {} episodes until loss of {}".format(total_episodes*STEPS_PER_EPISODE, loss_threshold))
+    print("Running for {} episodes until loss of {}".format(total_episodes, loss_threshold))
     time.sleep(1)
 
     observation_space = env.nS
@@ -157,6 +161,7 @@ def feeder():
     states_visited = np.zeros(dqn_solver.observation_space)
     episode = 0
     
+    csv_interface.writeQTableToCsv(dqn_performance_file, np.array([("episode","reward","avg_loss","epsilon")]) )
     for episode in range(total_episodes):
         # episode += 1
         state = random.choice(state_list)
@@ -183,21 +188,25 @@ def feeder():
             state = state_next
             total_reward += reward
             if dqn_solver.train_mode:
-                loss = dqn_solver.experience_replay()
-                # print("loss :", loss)
+                loss = dqn_solver.experience_replay(episode)
                 if loss>0:
                     avg_loss = (avg_loss+loss)/2
-        # print("Avg_loss : {}".format(avg_loss))
 
+        csv_interface.appendPerformaceData(dqn_performance_file, np.array([(episode,total_reward,avg_loss,dqn_solver.exploration_rate)]) )   
         print("")
         # print("")
         # dqn_solver.getQTable(verbose=True)
         table, policy = dqn_solver.getQTable(verbose=False)
-        print("Ep: {} Tot_rew:{} eps:{} avg_loss {}".format((episode+1)*STEPS_PER_EPISODE, total_reward, dqn_solver.exploration_rate, avg_loss))
+        # print("Ep: {} eps:{} avg_loss {} total_reward: {}".format((episode+1)*STEPS_PER_EPISODE, dqn_solver.exploration_rate, avg_loss, total_reward))
+        print("Ep: {} eps:{} avg_loss {} total_reward: {}".format(episode, dqn_solver.exploration_rate, avg_loss, total_reward))
         print("Optimum policy: {}".format(policy))
-        if avg_loss <= loss_threshold:
-            print("Loss threshold satisfied, breaking!")
+        # if avg_loss <= loss_threshold:
+        #     print("Loss threshold satisfied, breaking!")
+        #     break
+        if total_reward == 300:
+            print("Max reward obtained, breaking!! @ ep : {}".format(episode))
             break
+
         # print("States visited :", states_visited)
 
     print("")
@@ -206,7 +215,7 @@ def feeder():
 
     print("")
     if dqn_solver.train_mode:
-        dqn_solver.saveResults(dqn_policy_file,dqn_json_file,dqn_weights_file)
+        dqn_solver.saveResults(dqn_policy_file,dqn_json_file,dqn_weights_file,dqn_performance_file)
         print("")
 
 if __name__=="__main__":

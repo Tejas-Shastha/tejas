@@ -35,6 +35,13 @@ def readQTableFromCsv(path, shape):
             qtable[i]=row
     return qtable
 
+def appendPerformaceData(path, data):
+    with open(path, mode='a') as p_file:
+        writer = csv.writer(p_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for row in data:
+            writer.writerow(row)
+
+
 
 def test():
     array = [1, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 1]

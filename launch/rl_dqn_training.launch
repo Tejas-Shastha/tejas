@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <launch>
 
-<arg name="episodes" default="2000" />
-<arg name="steps" default="30" />
+<arg name="episodes" default="500" />
+<arg name="steps" default="100" />
 <arg name="loss" default="0.001" />
 
 	<!-- Start the service server first -->
@@ -15,7 +15,8 @@
               $(find tejas)/resources/DQN_model.h5 
               $(arg episodes)
               $(arg steps)
-              $(arg loss)"
+              $(arg loss)
+              $(find tejas)/resources/DQN_performance.csv"
         output="screen" />
 
 </launch>
