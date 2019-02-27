@@ -88,9 +88,14 @@ for episode in range(total_episodes):
             break
             
     csv_interface.appendPerformaceData(q_performance_file, np.array([(episode,total_rewards,max_variation,epsilon)]) )
-    if total_rewards == 300:
-        print("Rewards threshold reached, breaking at ep: {}!!".format(episode))
-        print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
+    # if total_rewards == 300:
+    #     print("Rewards threshold reached, breaking at ep: {}!!".format(episode))
+    #     print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
+    #     break
+    if max_variation <= 0.001:
+        print("Min variation reached, breaking at ep: {}!!".format(episode))
+        # print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
+        print("Epsilon: {} Max_Varaition : {} Total_Reward: {}".format(epsilon, max_variation, total_rewards))
         break
 
     if episode%10 == 0: 
@@ -100,7 +105,8 @@ for episode in range(total_episodes):
             policy.append(np.argmax(row))
         print(policy)
         print("Episode #{}".format(episode))
-        print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
+        # print("Exploited : {} Explored : {} Max_Varaition : {} Total_Reward: {}".format(exploited, explored, max_variation, total_rewards))
+        print("Epsilon: {} Max_Varaition : {} Total_Reward: {}".format(epsilon, max_variation, total_rewards))
         print("")
         
 

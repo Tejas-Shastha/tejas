@@ -76,6 +76,7 @@ class DQNSolver:
             self.model.fit(state, q_values, verbose=0)
         self.exploration_rate = EXPLORATION_MIN + (EXPLORATION_MAX - EXPLORATION_MIN)*np.exp(-EXPLORATION_DECAY*episode) 
         return q_variation**2
+        # return abs(q_variation)
 
     def save_model(self, json_file, weights_file):
         model_json = self.model.to_json()
@@ -194,18 +195,18 @@ def feeder():
 
         csv_interface.appendPerformaceData(dqn_performance_file, np.array([(episode,total_reward,avg_loss,dqn_solver.exploration_rate)]) )   
         print("")
-        # print("")
-        # dqn_solver.getQTable(verbose=True)
+
         table, policy = dqn_solver.getQTable(verbose=False)
         # print("Ep: {} eps:{} avg_loss {} total_reward: {}".format((episode+1)*STEPS_PER_EPISODE, dqn_solver.exploration_rate, avg_loss, total_reward))
         print("Ep: {} eps:{} avg_loss {} total_reward: {}".format(episode, dqn_solver.exploration_rate, avg_loss, total_reward))
         print("Optimum policy: {}".format(policy))
-        # if avg_loss <= loss_threshold:
-        #     print("Loss threshold satisfied, breaking!")
-        #     break
-        if total_reward == 300:
-            print("Max reward obtained, breaking!! @ ep : {}".format(episode))
+
+        if avg_loss <= loss_threshold:
+            print("Loss threshold satisfied, breaking at ep : {}!!".format(episode))
             break
+        # if total_reward == 300:
+        #     print("Max reward obtained, breaking!! @ ep : {}".format(episode))
+        #     break
 
         # print("States visited :", states_visited)
 
