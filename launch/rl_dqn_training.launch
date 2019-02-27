@@ -3,7 +3,7 @@
 
 <arg name="episodes" default="500" />
 <arg name="steps" default="100" />
-<arg name="loss" default="0.001" />
+<arg name="loss" default="0.0001" />
 
 	<!-- Start the service server first -->
   <node pkg="tejas" type="robot_emulator_server.py" name="emulator_service" />
