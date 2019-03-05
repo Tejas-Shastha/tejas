@@ -41,14 +41,14 @@
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_1_2_THRESH 0.2
+#define FORCE_F_1_2_THRESH 0.1
 #define FORCE_F_2_3_THRESH 0.4
 #define ROTATION_STEP 10
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 170 // was 140
+#define UPPER_FEED_ANGLE_THRESH 170 // Do not cross this. Bad things happen.
 
 double lower_angle_thresh = 85;
 float thresh_lin = 0.02;
@@ -380,8 +380,6 @@ bool checkUpperAngleThreshold()
 
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
   temp_roll = getCurrentRoll();
-ROS_INFO_STREAM("Checking current roll " << angles::to_degrees(temp_roll) << " vs max of " << UPPER_FEED_ANGLE_THRESH);
-
 
   if ( angles::to_degrees(temp_roll) > UPPER_FEED_ANGLE_THRESH )
   {
@@ -567,14 +565,15 @@ int main(int argc, char **argv)
     {
       ROS_INFO("---------------------------------------------------------------------");
       driveToRollGoalWithVelocity(LOWER_CUP);
-      ros::Duration(1.0).sleep(); // Allow inertial settlement
       prev_step_count = step_count--;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-      if (prev_step_count == 1 && step_count == 0)
+//      Initiate fallback if lowering down close to initial roll. Direct state comparison not a good idea since velocity drive inacuracy accrues largely over time.
+      if (prev_step_count > step_count &&
+          std::fabs( angles::to_degrees(getCurrentRoll())-angles::to_degrees(lower_angle_thresh)) <= ROTATION_STEP)
       {
         callFallbackTimer(3);
       }
@@ -584,7 +583,6 @@ int main(int argc, char **argv)
     {
       ROS_INFO("---------------------------------------------------------------------");
       driveToRollGoalWithVelocity(RAISE_CUP);
-      ros::Duration(1.0).sleep(); // Allow inertial settlement
       prev_step_count =  step_count++;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;

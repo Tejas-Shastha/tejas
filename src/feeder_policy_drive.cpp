@@ -50,14 +50,14 @@
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
 #define FORCE_F_1_2_THRESH 0.1
-#define FORCE_F_2_3_THRESH 0.4
+#define FORCE_F_2_3_THRESH 0.5
 #define NUMBER_OF_ARM_SUB_STATES 10
 
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
+#define UPPER_FEED_ANGLE_THRESH 200.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1
