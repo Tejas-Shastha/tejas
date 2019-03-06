@@ -4,10 +4,10 @@
 /// if force € (FORCE_F_2_3_THRESH, MAX] then state 3 : raise cup
 ///
 /// Fallback velocity functions
-///	Vel.x				                                  Vel.y
+///	Vel.x				                                  Vel.y 
 /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
 ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
-///   90 to 180	  y =  0.004444444*x - 0.8
+///   90 to 180	  y =  0.004444444*x - 0.8				
 ///
 ///
 ///
@@ -33,8 +33,8 @@
 #define ARC_DOWN 1
 #define ARC_UP 2
 #define TRANSLATE_BACK 3
-#define RAISE_CUP 4
-#define LOWER_CUP 5
+#define ROTATE_DOWN 4
+#define ROTATE_UP 5
 #define TRANSLATE_UP 6
 #define TRANSLATE_DOWN 7
 #define TRANSLATE_FRONT 8
@@ -42,13 +42,13 @@
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
 #define FORCE_F_1_2_THRESH 0.1
-#define FORCE_F_2_3_THRESH 0.4
+#define FORCE_F_2_3_THRESH 0.5
 #define ROTATION_STEP 10
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 170 // Do not cross this. Bad things happen.
+#define UPPER_FEED_ANGLE_THRESH 170 // Do not raise this, bad things happen.
 
 double lower_angle_thresh = 85;
 float thresh_lin = 0.02;
@@ -164,15 +164,15 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
       twist.twist.linear.x=-VEL_LIN_MAX;
     break;
 
-//    case ROTATE_DOWN:
-//      ROS_INFO("Rotate down");
-//      twist.twist.angular.x=VEL_ANG_MAX;
-//    break;
+    case ROTATE_DOWN:
+      ROS_INFO("Rotate down");
+      twist.twist.angular.x=VEL_ANG_MAX;
+    break;
 
-//    case ROTATE_UP:
-//      ROS_INFO("Rotate up");
-//      twist.twist.angular.x=-VEL_ANG_MAX;
-//    break;
+    case ROTATE_UP:
+      ROS_INFO("Rotate up");
+      twist.twist.angular.x=-VEL_ANG_MAX;
+    break;
 
     case TRANSLATE_UP:
       ROS_INFO("Translate up");
@@ -238,10 +238,10 @@ void positionControlDriveForDirection(int direction, double distance)
 
 void driveToRollGoalWithVelocity(int direction)
 {
-  if(direction == RAISE_CUP)
-    ROS_INFO_STREAM("Raise cup");
-  else if (direction == LOWER_CUP)
-    ROS_INFO_STREAM("Lower cup");
+  if(direction == ROTATE_DOWN)
+    ROS_INFO_STREAM("Rotate down");
+  else if (direction == ROTATE_UP)
+    ROS_INFO_STREAM("Rotate up");
   else
   {
     ROS_ERROR_STREAM("Wrong direction given!!");
@@ -261,7 +261,7 @@ void driveToRollGoalWithVelocity(int direction)
 
   goal_pose = start_pose;
 
-  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==ROTATE_DOWN?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
   tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
   tf::Quaternion q_goal = q_start*q_rot;
 
@@ -280,18 +280,14 @@ void driveToRollGoalWithVelocity(int direction)
     getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
     getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
 
-    if (goal_rol < 0 ) goal_rol = goal_rol + angles::from_degrees(360);
-    if (temp_rol < 0 ) temp_rol = temp_rol + angles::from_degrees(360);
-
     del_rol = goal_rol - temp_rol;
 
     if (std::fabs(del_rol)>=thresh_ang)
     {
-      float linear_vel = 0.02;
       geometry_msgs::TwistStamped twist_msg;
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
-      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
+      twist_msg.twist.linear.z = direction == ROTATE_UP? -thresh_lin : thresh_lin;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
@@ -367,7 +363,7 @@ void waitForPoseDataAvailable()
   }
   ROS_INFO("Pose data available");
 }
-double getCurrentRoll();
+
 bool checkUpperAngleThreshold()
 {
   geometry_msgs::PoseStamped temp_pose;
@@ -377,9 +373,7 @@ bool checkUpperAngleThreshold()
   lock_pose.unlock();
 
   double temp_roll, temp_pitch, temp_yaw;
-
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
-  temp_roll = getCurrentRoll();
 
   if ( angles::to_degrees(temp_roll) > UPPER_FEED_ANGLE_THRESH )
   {
@@ -402,7 +396,6 @@ bool checkLowerAngleThreshold()
 
   double temp_roll, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
-  temp_roll = getCurrentRoll();
 
   if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < ROTATION_STEP/2 )
   {
@@ -425,8 +418,7 @@ double getCurrentRoll()
   double temp_rol, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pitch, temp_yaw);
 
-
-  return temp_rol<0?temp_rol+angles::from_degrees(360):temp_rol;
+  return temp_rol;
 }
 
 void fallback();
@@ -475,7 +467,7 @@ void fallback()
   // ROS_INFO_STREAM("Current yaw float: " << angles::to_degrees(yaw) << " int " << yaw_degrees);
 
   geometry_msgs::TwistStamped twist_cmd;
-
+ 
   // y = mx + c
   double m = 0.004444444;
   double velx_c = 0.8;
@@ -483,17 +475,17 @@ void fallback()
 
 
   /// Fallback velocity functions
-  ///	Vel.x				                                  Vel.y
+  ///	Vel.x				                                  Vel.y 
   /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
   ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
-  ///   90 to 180	  y =  0.004444444*x - 0.8
+  ///   90 to 180	  y =  0.004444444*x - 0.8				
 
   if (yaw_degrees >= -180 && yaw_degrees < -90)
   {
     //ROS_INFO_STREAM("Sector 1");
     twist_cmd.twist.linear.x = m * yaw_degrees + velx_c;
     twist_cmd.twist.linear.y = m * yaw_degrees + vely_c;
-  }
+  }  
   else if (yaw_degrees >= -90 &&  yaw_degrees <0)
   {
     //ROS_INFO_STREAM("Sector 2");
@@ -564,16 +556,15 @@ int main(int argc, char **argv)
     if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
     {
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(LOWER_CUP);
+      driveToRollGoalWithVelocity(ROTATE_UP);
       prev_step_count = step_count--;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-//      Initiate fallback if lowering down close to initial roll. Direct state comparison not a good idea since velocity drive inacuracy accrues largely over time.
       if (prev_step_count > step_count &&
-          std::fabs( angles::to_degrees(getCurrentRoll())-angles::to_degrees(lower_angle_thresh)) <= ROTATION_STEP)
+          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
       {
         callFallbackTimer(3);
       }
@@ -582,7 +573,7 @@ int main(int argc, char **argv)
     else if (local_force_f >= FORCE_F_2_3_THRESH && checkUpperAngleThreshold())
     {
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(RAISE_CUP);
+      driveToRollGoalWithVelocity(ROTATE_DOWN);
       prev_step_count =  step_count++;
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
