@@ -37,6 +37,11 @@
 #include <boost/algorithm/string.hpp>
 
 
+#define FORCE_F_1_2_THRESH 0.05
+#define FORCE_F_2_3_THRESH 0.2
+#define NUMBER_OF_ARM_SUB_STATES 10
+#define UPPER_FEED_ANGLE_THRESH 140.00 // was 140
+#define FORCE_SAFETY 2.5
 
 #define ARC_DOWN 1
 #define ARC_UP 2
@@ -49,15 +54,12 @@
 #define END_EFF_FRAME "j2s7s300_end_effector"
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
-#define FORCE_F_1_2_THRESH 0.1
-#define FORCE_F_2_3_THRESH 0.5
-#define NUMBER_OF_ARM_SUB_STATES 10
+
 
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
-#define UPPER_FEED_ANGLE_THRESH 200.00 // was 140
 
 #define ACTION_DOWN 0
 #define ACTION_STAY 1
@@ -251,6 +253,21 @@ void positionControlDriveForDirection(int direction, double distance)
   cmd_pos.publish(pose_in_base);
 }
 
+bool isForceSafe()
+{
+  double local_force_f;
+  lock_force.lock();
+  local_force_f=force_f;
+  lock_force.unlock();
+
+  if (local_force_f >= FORCE_SAFETY)
+    return false;
+  else
+    return true;
+}
+
+void fallback();
+
 void driveToRollGoalWithVelocity(int direction)
 {
   if(direction == RAISE_CUP)
@@ -306,12 +323,22 @@ void driveToRollGoalWithVelocity(int direction)
       geometry_msgs::TwistStamped twist_msg;
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
-      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
+      // Comment out next line ONLY if using end-effector mode ie: Mode 1 on jostick is active and 4th blue LED on far right is active.
+//      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
 
-      cmd_vel.publish(twist_msg);
+      if(isForceSafe())
+      {
+        cmd_vel.publish(twist_msg);
+      }
+      else
+      {
+        ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+        fallback();
+        break;
+      }
     }
     else
     {
@@ -691,6 +718,11 @@ int main(int argc, char **argv)
       case ACTION_DOWN:
       if(!checkLowerAngleThreshold())
       {
+        if(prev_step_count > step_count)
+        {
+          callFallbackTimer(3);
+          break;
+        }
         ROS_WARN_STREAM("LOWER THRESHOLD REACHED!!");
         break;
       }
@@ -705,8 +737,13 @@ int main(int argc, char **argv)
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-      if (prev_step_count == 1 && step_count == 0) callFallbackTimer(3);
-      break;
+      if ((prev_step_count > step_count &&
+          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  0.75*rotation_step) ||
+          (prev_step_count == 1 && step_count == 0 ))
+      {
+        callFallbackTimer(3);
+        break;
+      }
 
 
 
@@ -729,7 +766,7 @@ int main(int argc, char **argv)
       case ACTION_UP:
       if(!checkUpperAngleThreshold())
       {
-        ROS_WARN_STREAM("UPPER THRESHOLD REACHED!!");
+        ROS_INFO_STREAM("UPPER THRESHOLD REACHED!!");
         break;
       }
       ROS_INFO("---------------------------------------------------------------------");

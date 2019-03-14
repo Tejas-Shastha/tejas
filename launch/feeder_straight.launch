@@ -5,7 +5,7 @@
 
     <arg name="user"/>
 
-    <node pkg="rosbag" type="record" name="rosbag_record" args="-a -o /media/tejas/Elements/post_development_study/$(arg user)/force_$(arg name)" />
+    <!--node pkg="rosbag" type="record" name="rosbag_record" args="-a -o /media/tejas/Elements/post_development_study/$(arg user)/force_$(arg name)" /-->
 
     <node pkg="tejas" type="feeder_straight_1D" name="feeder_straight_1D" output="screen">
     </node>    
