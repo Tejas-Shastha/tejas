@@ -195,7 +195,7 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
 
 bool checkUpperAngleThreshold();
 bool checkLowerAngleThreshold();
-
+void fallback();
 
 bool isForceSafe()
 {
@@ -216,15 +216,16 @@ void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double durat
   while (ros::Time::now() - time_start < ros::Duration(duration))
   {
     ros::spinOnce();
-    if(isForceSafe())
-    {
+//    if(isForceSafe())
+//    {
       cmd_vel.publish(twist_msg);
-    }
-    else
-    {
-      ROS_INFO_STREAM("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
-      break;
-    }
+//    }
+//    else
+//    {
+//      ROS_INFO_STREAM("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+//      //fallback();
+//      break;
+//    }
   }
 }
 
@@ -327,6 +328,8 @@ void driveToRollGoalWithVelocity(int direction)
       else
       {
         ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+        fallback();
+        ros::shutdown();
         break;
       }
     }
@@ -619,7 +622,9 @@ int main(int argc, char **argv)
       }
     }
 
-    else if (local_force_f >= FORCE_F_2_3_THRESH && local_force_f <= FORCE_SAFETY && checkUpperAngleThreshold())
+    else if (local_force_f >= FORCE_F_2_3_THRESH
+             && local_force_f <= FORCE_SAFETY
+             && checkUpperAngleThreshold())
     {
       ROS_INFO("---------------------------------------------------------------------");
       driveToRollGoalWithVelocity(RAISE_CUP);

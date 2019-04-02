@@ -38,10 +38,10 @@
 
 
 #define FORCE_F_1_2_THRESH 0.05
-#define FORCE_F_2_3_THRESH 0.2
+#define FORCE_F_2_3_THRESH 0.5
 #define NUMBER_OF_ARM_SUB_STATES 10
-#define UPPER_FEED_ANGLE_THRESH 140.00 // was 140
-#define FORCE_SAFETY 2.5
+#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
+#define FORCE_SAFETY 5
 
 #define ARC_DOWN 1
 #define ARC_UP 2
@@ -337,6 +337,7 @@ void driveToRollGoalWithVelocity(int direction)
       {
         ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
         fallback();
+        ros::shutdown();
         break;
       }
     }

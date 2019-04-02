@@ -9,10 +9,13 @@
 
     <arg name="algorithm" default="pi" />
 
-    <!--node pkg="rosbag" type="record" name="rosbag_record" args="-a -o /media/tejas/Elements/post_development_study/$(arg user)/policy_$(arg name)" /-->
+    <node pkg="rosbag" type="record" name="rosbag_record" args="-a -o /media/tejas/Elements/post_development_study/rosbags/$(arg user)/policy_$(arg name)" />
 
     <node name="feeder_policy_drive" pkg="tejas" type="feeder_policy_drive"
         args="$(find tejas)/resources/PI_pi_star.csv $(find tejas)/resources/VI_pi_star.csv 
         $(find tejas)/resources/Q_policy.csv $(find tejas)/resources/SARSA_policy.csv $(arg algorithm)" output="screen"/>
+
+    <node pkg="tejas" type="data_extractor" name="data_extractor" args="$(arg user) policy_$(arg name)" output="screen">
+    </node>
 
 </launch>

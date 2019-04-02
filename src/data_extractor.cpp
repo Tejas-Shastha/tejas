@@ -43,15 +43,15 @@ void forceGrabber(const hri_package::Sens_Force::ConstPtr msg)
 
 
   std::ofstream force_writer;
-  std::string force_filename = "/home/lukas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_max_rate_forces.ods";
+  std::string force_filename = "/home/tejas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_max_rate_forces.ods";
 
-  ROS_INFO_STREAM("Writing max rate force data to : " << force_filename);
+//  ROS_INFO_STREAM("Writing max rate force data to : " << force_filename);
 
-  force_writer.open(force_filename, std::ios_base::app);
-  force_writer << force_f_received << "\t"
-               << force_b_received << "\t"
-               << "\n";
-  force_writer.close();
+//  force_writer.open(force_filename, std::ios_base::app);
+//  force_writer << force_f_received << "\t"
+//               << force_b_received << "\t"
+//               << "\n";
+//  force_writer.close();
 }
 
 void poseGrabber(geometry_msgs::PoseStamped pose)
@@ -60,9 +60,9 @@ void poseGrabber(geometry_msgs::PoseStamped pose)
   double roll, pitch, yaw;
   getRPYFromQuaternionMSG(pose.pose.orientation, roll, pitch, yaw);
   std::ofstream tool_writer;
-  std::string tool_filename="/home/lukas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_synchronised.ods";
+  std::string tool_filename="/home/tejas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_synchronised.ods";
 
-  ROS_INFO_STREAM("Writing sync data to : /home/lukas/data/extracted_data/" << USER_ID << "/" << FILE_NAME << "_synchronised.ods" );
+//  ROS_INFO_STREAM("Writing sync data to : /home/tejas/data/extracted_data/" << USER_ID << "/" << FILE_NAME << "_synchronised.ods" );
 
   lock_force.lock();
   double forceF=force_f_received;
@@ -79,8 +79,8 @@ void poseGrabber(geometry_msgs::PoseStamped pose)
               << angles::to_degrees(yaw) << "\t"
               << forceF << "\t"
               << forceB << "\t"
-              << 0.4 << "\t"   // Trigg_thresh_F
-              << 0.4 << "\t"   // Trigg_thresh_B
+              << 0.1 << "\t"   // Trigg_thresh_F
+              << 0.5 << "\t"   // Trigg_thresh_B
               << 2.5 << "\t"   // Pain_Thresh_F
               << 2.5 << "\t"   // Pain_Thresh_B
               << "\n";
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
   FILE_NAME = argv[2];
 
   std::ofstream tool_writer;
-  std::string tool_filename="/home/lukas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_synchronised.ods";
+  std::string tool_filename="/home/tejas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_synchronised.ods";
 
   ROS_INFO_STREAM("Writing data to" << tool_filename);
 
@@ -112,21 +112,21 @@ int main(int argc, char **argv)
               << "YAW" << "\t"
               << "FORCE_F" << "\t"
               << "FORCE_B" << "\t"
-              << "Trigg_Thresh_F" << "\t"
-              << "Trigg_Thresh_B" << "\t"
+              << "1_2_Thresh" << "\t"
+              << "2_3_Thresh" << "\t"
               << "Pain_Thresh_F" << "\t"
               << "Pain_Thresh_B" << "\t"
               << "\n";
   tool_writer.close();
 
-  std::ofstream force_writer;
-  std::string force_filename = "/home/lukas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_max_rate_forces.ods";
+//  std::ofstream force_writer;
+//  std::string force_filename = "/home/tejas/data/extracted_data/" + std::to_string(USER_ID) + "/" + FILE_NAME + "_max_rate_forces.ods";
 
-  force_writer.open(force_filename, std::ios_base::app);
-  force_writer << "ForceF" << "\t"
-               << "ForceB" << "\t"
-               << "\n";
-  force_writer.close();
+//  force_writer.open(force_filename, std::ios_base::app);
+//  force_writer << "ForceF" << "\t"
+//               << "ForceB" << "\t"
+//               << "\n";
+//  force_writer.close();
 
   sleep(0.25);
   ROS_INFO("Ready to extract");

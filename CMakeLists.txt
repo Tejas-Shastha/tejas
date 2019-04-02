@@ -87,6 +87,10 @@ add_executable(data_extractor src/data_extractor.cpp)
 add_dependencies(data_extractor ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(data_extractor ${catkin_LIBRARIES})
 
+add_executable(data_extractor_gmm src/data_extractor_gmm.cpp)
+add_dependencies(data_extractor_gmm ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(data_extractor_gmm ${catkin_LIBRARIES})
+
 
 
 
