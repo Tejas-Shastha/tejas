@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 	geometry_msgs
 	message_generation
 	tf
+        audio_emergency
 )
 
 

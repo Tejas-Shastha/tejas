@@ -19,6 +19,7 @@
 std::mutex lock_pose;
 std::string FILE_NAME;
 ros::Time start_time;
+float sequence_nr=0.00;
 
 
 void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll,double& pitch, double& yaw)
@@ -41,33 +42,35 @@ void poseGrabber(geometry_msgs::PoseStamped pose)
   ROS_INFO_STREAM("Writing @ " << (float)(ros::Time::now().toSec() - start_time.toSec())  << " data to : " << tool_filename);
 
   tool_writer.open(tool_filename, std::ios_base::app);
-  tool_writer << std::setprecision(4) << (float)(ros::Time::now().toSec() - start_time.toSec())  << "\t"
-              << std::setprecision(4) << pose.pose.position.x << "\t"
-              << std::setprecision(4) << pose.pose.position.y << "\t"
-              << std::setprecision(4) << pose.pose.position.z << "\t"
-              << std::setprecision(4) << pose.pose.orientation.x << "\t"
-              << std::setprecision(4) << pose.pose.orientation.y << "\t"
-              << std::setprecision(4) << pose.pose.orientation.z << "\t"
-              << std::setprecision(4) << pose.pose.orientation.w << "\t"
-              << std::setprecision(4) << angles::to_degrees(roll) << "\t"
-              << std::setprecision(4) << angles::to_degrees(pitch) << "\t"
-              << std::setprecision(4) << angles::to_degrees(yaw) << "\t"
+//  tool_writer << std::setprecision(4) << (float)(ros::Time::now().toSec() - start_time.toSec())  << "\t"
+  tool_writer << std::fixed << std::setprecision(3) << sequence_nr  << "\t"
+              << std::setprecision(3) << pose.pose.position.x << "\t"
+              << std::setprecision(3) << pose.pose.position.y << "\t"
+              << std::setprecision(3) << pose.pose.position.z << "\t"
+              << std::setprecision(3) << pose.pose.orientation.x << "\t"
+              << std::setprecision(3) << pose.pose.orientation.y << "\t"
+              << std::setprecision(3) << pose.pose.orientation.z << "\t"
+              << std::setprecision(3) << pose.pose.orientation.w << "\t"
+//              << std::setprecision(4) << angles::to_degrees(roll) << "\t"
+//              << std::setprecision(4) << angles::to_degrees(pitch) << "\t"
+//              << std::setprecision(4) << angles::to_degrees(yaw) << "\t"
               << "\n";
   tool_writer.close();
 
   ROS_INFO_STREAM("Writing @ " << (float)(ros::Time::now().toSec() - start_time.toSec())  << " data to : " << tool_filename_ods);
   tool_writer.open(tool_filename_ods, std::ios_base::app);
-  tool_writer << std::setprecision(4) << (float)(ros::Time::now().toSec() - start_time.toSec())  << "\t"
-              << std::setprecision(4) << pose.pose.position.x << "\t"
-              << std::setprecision(4) << pose.pose.position.y << "\t"
-              << std::setprecision(4) << pose.pose.position.z << "\t"
-              << std::setprecision(4) << pose.pose.orientation.x << "\t"
-              << std::setprecision(4) << pose.pose.orientation.y << "\t"
-              << std::setprecision(4) << pose.pose.orientation.z << "\t"
-              << std::setprecision(4) << pose.pose.orientation.w << "\t"
-              << std::setprecision(4) << angles::to_degrees(roll) << "\t"
-              << std::setprecision(4) << angles::to_degrees(pitch) << "\t"
-              << std::setprecision(4) << angles::to_degrees(yaw) << "\t"
+//  tool_writer << std::setprecision(4) << (float)(ros::Time::now().toSec() - start_time.toSec())  << "\t"
+  tool_writer << std::fixed << std::setprecision(3) << sequence_nr++  << "\t"
+              << std::setprecision(3) << pose.pose.position.x << "\t"
+              << std::setprecision(3) << pose.pose.position.y << "\t"
+              << std::setprecision(3) << pose.pose.position.z << "\t"
+              << std::setprecision(3) << pose.pose.orientation.x << "\t"
+              << std::setprecision(3) << pose.pose.orientation.y << "\t"
+              << std::setprecision(3) << pose.pose.orientation.z << "\t"
+              << std::setprecision(3) << pose.pose.orientation.w << "\t"
+//              << std::setprecision(4) << angles::to_degrees(roll) << "\t"
+//              << std::setprecision(4) << angles::to_degrees(pitch) << "\t"
+//              << std::setprecision(4) << angles::to_degrees(yaw) << "\t"
               << "\n";
   tool_writer.close();
 }
@@ -94,9 +97,9 @@ int main(int argc, char **argv)
               << "QY" << "\t"
               << "QZ" << "\t"
               << "QW" << "\t"
-              << "ROLL" << "\t"
-              << "PITCH" << "\t"
-              << "YAW" << "\t"
+//              << "ROLL" << "\t"
+//              << "PITCH" << "\t"
+//              << "YAW" << "\t"
               << "\n";
   tool_writer.close();
 

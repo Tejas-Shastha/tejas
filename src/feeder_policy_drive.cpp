@@ -19,6 +19,7 @@
 #include "mutex"
 #include "angles/angles.h"
 #include "std_msgs/Int32.h"
+#include "audio_emergency/AudioMessage.h"
 
 
 #include "geometry_msgs/Vector3.h"
@@ -70,6 +71,7 @@ double lower_angle_thresh = 85;
 float thresh_lin = 0.01;
 float thresh_ang = 0.05;
 double rotation_step;
+bool emergency = false;
 
 int step_count;
 
@@ -78,6 +80,7 @@ std::mutex lock_pose;
 std::mutex lock_status;
 std::mutex lock_proc;
 std::mutex lock_force;
+std::mutex lock_emerg;
 double force_f, force_b;
 bool processing=false;
 ros::Publisher cmd_pos;
@@ -261,9 +264,22 @@ bool isForceSafe()
   lock_force.unlock();
 
   if (local_force_f >= FORCE_SAFETY)
+  {
+    ROS_WARN_STREAM("PAIN THRESHOLD BREACHED!!");
     return false;
+  }
   else
     return true;
+}
+
+bool isAudioSafe()
+{
+  lock_emerg.lock();
+  bool emerg = emergency;
+  lock_emerg.unlock();
+
+  if (emerg) ROS_WARN_STREAM("AUDIO EMERGENCY DETECTED!!");
+  return !emerg;
 }
 
 void fallback(bool emerg=false);
@@ -329,16 +345,15 @@ void driveToRollGoalWithVelocity(int direction)
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
 
-      if(isForceSafe())
+      if(isForceSafe() && isAudioSafe())
       {
         cmd_vel.publish(twist_msg);
       }
       else
       {
-        ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+        ROS_WARN("ABORTING SEQUENCE!!!");
         fallback(true);
         ros::shutdown();
-        break;
       }
     }
     else
@@ -657,6 +672,29 @@ std::vector<int> selectActivePolicy(std::string algorithm, char** argv)
   }
 }
 
+void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
+{
+  lock_emerg.lock();
+  if (msg->result == "talk") emergency = true;
+  lock_emerg.unlock();
+}
+
+void safePauseFor(float duration)
+{
+  ros::Time start = ros::Time::now();
+  ros::Rate loop_rate(10);
+  while(ros::Time::now()-start < ros::Duration(duration))
+  {
+    ros::spinOnce();
+    if (!isAudioSafe() || !isForceSafe())
+    {
+      ROS_WARN_STREAM("ABORTING SEQUENCE!!");
+      fallback(true);
+      ros::shutdown();
+    }
+    loop_rate.sleep();
+  }
+}
 
 int main(int argc, char **argv)
 {
@@ -672,6 +710,7 @@ int main(int argc, char **argv)
   ros::Subscriber tool_pose = nh.subscribe("/j2s7s300_driver/out/tool_pose",1000, poseGrabber );
   ros::Subscriber control_status = nh.subscribe("/RobotControl/Status",1000, statusGrabber );
   ros::Publisher arm_pose_pub = nh.advertise<std_msgs::Int32>("/arm_state", 1000);
+  ros::Subscriber audio_emerg = nh.subscribe("/audio_emergency",1000, audioGrabber );
 
   waitForPoseDataAvailable();
 
@@ -734,7 +773,8 @@ int main(int argc, char **argv)
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
       driveToRollGoalWithVelocity(LOWER_CUP);
-      ros::Duration(1.0).sleep(); // Allow inertial settlement
+//      ros::Duration(1.0).sleep(); // Allow inertial settlement
+      safePauseFor(1.0);
       prev_step_count = step_count--;
       ros::spinOnce(); // Update subscribed values ie: current pose
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
@@ -777,7 +817,8 @@ int main(int argc, char **argv)
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO_STREAM("Current state : "<< state << " (" <<  force_f   <<"N) " << " Selected action : " << action);
       driveToRollGoalWithVelocity(RAISE_CUP);
-      ros::Duration(1.0).sleep(); // Allow inertial settlement
+//      ros::Duration(1.0).sleep(); // Allow inertial settlement
+      safePauseFor(1.0);
       prev_step_count =  step_count++;
       ros::spinOnce(); // Update subscribed values ie: current pose
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
@@ -788,9 +829,16 @@ int main(int argc, char **argv)
     }
 
     loop_rate.sleep();
+    ros::spinOnce();
     std_msgs::Int32 arm_pose_msg;
     arm_pose_msg.data=step_count;
     arm_pose_pub.publish(arm_pose_msg);
+    if (!isAudioSafe())
+    {
+      ROS_WARN_STREAM("ABORTING SEQUENCE!!");
+      fallback(true);
+      ros::shutdown();
+    }
 
 
   }

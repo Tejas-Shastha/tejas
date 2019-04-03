@@ -19,6 +19,7 @@
 #include "mutex"
 #include "angles/angles.h"
 #include "std_msgs/Int32.h"
+#include "audio_emergency/AudioMessage.h"
 
 
 #include "geometry_msgs/Vector3.h"
@@ -66,6 +67,8 @@ std::mutex lock_pose;
 std::mutex lock_status;
 std::mutex lock_proc;
 std::mutex lock_force;
+std::mutex lock_emerg;
+bool emergency = false;
 double force_f, force_b;
 bool processing=false;
 ros::Publisher cmd_pos;
@@ -205,9 +208,22 @@ bool isForceSafe()
   lock_force.unlock();
 
   if (local_force_f >= FORCE_SAFETY)
+  {
+    ROS_WARN_STREAM("PAIN THRESHOLD BREACHED!!");
     return false;
+  }
   else
     return true;
+}
+
+bool isAudioSafe()
+{
+  lock_emerg.lock();
+  bool emerg = emergency;
+  lock_emerg.unlock();
+
+  if (emerg) ROS_WARN_STREAM("AUDIO EMERGENCY DETECTED!!");
+  return !emerg;
 }
 
 void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double duration)
@@ -216,16 +232,7 @@ void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double durat
   while (ros::Time::now() - time_start < ros::Duration(duration))
   {
     ros::spinOnce();
-//    if(isForceSafe())
-//    {
-      cmd_vel.publish(twist_msg);
-//    }
-//    else
-//    {
-//      ROS_INFO_STREAM("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
-//      //fallback();
-//      break;
-//    }
+    cmd_vel.publish(twist_msg);
   }
 }
 
@@ -321,16 +328,15 @@ void driveToRollGoalWithVelocity(int direction)
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
 
-      if(isForceSafe())
+      if(isForceSafe() && isAudioSafe())
       {
         cmd_vel.publish(twist_msg);
       }
       else
       {
-        ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
+        ROS_WARN("ABORTING SEQUENCE!!!");
         fallback(true);
         ros::shutdown();
-        break;
       }
     }
     else
@@ -562,6 +568,15 @@ void fallback(bool emerg)
   publishTwistForDuration(twist_cmd,1);
 }
 
+
+void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
+{
+  lock_emerg.lock();
+  if (msg->result == "talk") emergency = true;
+  lock_emerg.unlock();
+}
+
+
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_straight_1D");
@@ -575,6 +590,7 @@ int main(int argc, char **argv)
   ros::Subscriber tool_pose = nh.subscribe("/j2s7s300_driver/out/tool_pose",1000, poseGrabber );
   ros::Subscriber control_status = nh.subscribe("/RobotControl/Status",1000, statusGrabber );
   ros::Publisher arm_pose_pub = nh.advertise<std_msgs::Int32>("/arm_state", 1000);
+  ros::Subscriber audio_emerg = nh.subscribe("/audio_emergency",1000, audioGrabber );
 
   waitForPoseDataAvailable();
 
@@ -647,6 +663,7 @@ int main(int argc, char **argv)
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
+
     }
 
 
@@ -654,9 +671,18 @@ int main(int argc, char **argv)
     std_msgs::Int32 arm_pose_msg;
     arm_pose_msg.data=step_count;
     arm_pose_pub.publish(arm_pose_msg);
+    ros::spinOnce();
+
+    if (!isAudioSafe())
+    {
+      ROS_WARN_STREAM("ABORTING SEQUENCE!!");
+      fallback(true);
+      ros::shutdown();
+    }
+    else
+    {
+//      ROS_INFO("Audio safe");
+    }
   }
-
-  ros::spinOnce();
-
   return 0;
 }
