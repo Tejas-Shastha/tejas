@@ -170,12 +170,12 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
     break;
 
     case RAISE_CUP:
-      ROS_INFO("Rotate down");
+      ROS_INFO("Raise Cup");
       twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
     case LOWER_CUP:
-      ROS_INFO("Rotate up");
+      ROS_INFO("Lower Cup");
       twist.twist.angular.x=-VEL_ANG_MAX;
     break;
 
@@ -345,21 +345,21 @@ void driveToRollGoalWithVelocity(int direction)
 
 }
 
-//void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.1)
-//{
-//  if (direction==TRANSLATE_BACK || direction==TRANSLATE_FRONT)
-//  {
-//    positionControlDriveForDirection(direction, distance);
-//    return;
-//  }
-//  else
-//  {
-//    geometry_msgs::TwistStamped twist_msg = getTwistForDirection(direction);
-//    publishTwistForDuration(twist_msg, duration);
+void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.1)
+{
+  if (direction==TRANSLATE_BACK || direction==TRANSLATE_FRONT)
+  {
+    positionControlDriveForDirection(direction, distance);
+    return;
+  }
+  else
+  {
+    geometry_msgs::TwistStamped twist_msg = getTwistForDirection(direction);
+    publishTwistForDuration(twist_msg, duration);
 
-//  }
-//  return;
-//}
+  }
+  return;
+}
 
 
 void poseGrabber(geometry_msgs::PoseStamped pose)
@@ -450,7 +450,7 @@ bool checkLowerAngleThreshold()
   }
   else
   {
-   //ROS_INFO_STREAM("Current roll: " << (int)angles::to_degrees(temp_roll));
+//   ROS_INFO_STREAM("Current roll: " << (temp_roll));
    return true;
   }
 }
@@ -578,10 +578,13 @@ int main(int argc, char **argv)
 
   waitForPoseDataAvailable();
 
-  double local_force_f
-      //,local_force_b
-      ;
+  double local_force_f;
   bool print_once_only=true;
+
+  ROS_INFO_STREAM("Initial rotation from " << angles::to_degrees(getCurrentRoll()));
+  moveCup(RAISE_CUP, VEL_CMD_DURATION);
+  ros::Duration(1.0).sleep(); // Allow inertial settlement
+  ros::spinOnce();
 
   lock_pose.lock();
   initial_pose=current_pose;
@@ -590,7 +593,7 @@ int main(int argc, char **argv)
   double r,p,y;
   getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
   lower_angle_thresh = r;
-  ROS_INFO_STREAM("Lower feed angle thresh set to " << (int)angles::to_degrees(lower_angle_thresh));
+  ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
 
   step_count = 0;
   int prev_step_count = 0;

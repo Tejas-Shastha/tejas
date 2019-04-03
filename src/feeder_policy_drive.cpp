@@ -182,12 +182,12 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
     break;
 
     case RAISE_CUP:
-      ROS_INFO("Rotate down");
+      ROS_INFO("Raise Cup");
       twist.twist.angular.x=VEL_ANG_MAX;
     break;
 
     case LOWER_CUP:
-      ROS_INFO("Rotate up");
+      ROS_INFO("Lower Cup");
       twist.twist.angular.x=-VEL_ANG_MAX;
     break;
 
@@ -450,7 +450,7 @@ bool checkLowerAngleThreshold()
   }
   else
   {
-   //ROS_INFO_STREAM("Current roll: " << (int)angles::to_degrees(temp_roll));
+//   ROS_INFO_STREAM("Current roll: " << sangles::to_degrees(temp_roll));
    return true;
   }
 }
@@ -678,6 +678,11 @@ int main(int argc, char **argv)
   double local_force_f;
   bool print_once_only=true;
 
+  ROS_INFO_STREAM("Initial rotation from " << angles::to_degrees(getCurrentRoll()));
+  moveCup(RAISE_CUP, VEL_CMD_DURATION);
+  ros::Duration(1.0).sleep(); // Allow inertial settlement
+  ros::spinOnce();
+
   lock_pose.lock();
   initial_pose=current_pose;
   lock_pose.unlock();
@@ -685,7 +690,6 @@ int main(int argc, char **argv)
   double r,p,y;
   getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
   lower_angle_thresh = r;
-
 
   rotation_step = (UPPER_FEED_ANGLE_THRESH - angles::to_degrees(lower_angle_thresh))/NUMBER_OF_ARM_SUB_STATES;
 
