@@ -266,7 +266,7 @@ bool isForceSafe()
     return true;
 }
 
-void fallback();
+void fallback(bool emerg=false);
 
 void driveToRollGoalWithVelocity(int direction)
 {
@@ -336,7 +336,7 @@ void driveToRollGoalWithVelocity(int direction)
       else
       {
         ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
-        fallback();
+        fallback(true);
         ros::shutdown();
         break;
       }
@@ -468,7 +468,6 @@ double getCurrentRoll()
   return temp_rol<0?temp_rol+angles::from_degrees(360):temp_rol;
 }
 
-void fallback();
 void callFallbackTimer(double duration)
 {
 
@@ -499,7 +498,7 @@ void callFallbackTimer(double duration)
   ros::shutdown();
 }
 
-void fallback()
+void fallback(bool emerg)
 {
   lock_pose.lock();
   geometry_msgs::PoseStamped  start_pose=current_pose;
@@ -552,7 +551,8 @@ void fallback()
   }
   //ROS_INFO_STREAM("Publishing twist : ");
   //std::cout << (twist_cmd) << std::endl;
-  publishTwistForDuration(twist_cmd,0.5);
+  if (emerg==true) twist_cmd.twist.angular.x = -1;
+  publishTwistForDuration(twist_cmd,1);
 }
 
 

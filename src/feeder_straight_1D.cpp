@@ -195,7 +195,7 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
 
 bool checkUpperAngleThreshold();
 bool checkLowerAngleThreshold();
-void fallback();
+void fallback(bool emerg=false);
 
 bool isForceSafe()
 {
@@ -328,7 +328,7 @@ void driveToRollGoalWithVelocity(int direction)
       else
       {
         ROS_WARN("PAIN THRESHOLD BREACHED, ABORTING SEQUENCE!!!");
-        fallback();
+        fallback(true);
         ros::shutdown();
         break;
       }
@@ -415,9 +415,9 @@ bool checkUpperAngleThreshold()
   getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);*/
   temp_roll = getCurrentRollDegrees();
 
-  ROS_INFO_STREAM("Checking current roll " << temp_roll <<
-                  " + " << ROTATION_STEP <<
-                  " vs limit " << UPPER_FEED_ANGLE_THRESH );
+//  ROS_INFO_STREAM("Checking current roll " << temp_roll <<
+//                  " + " << ROTATION_STEP <<
+//                  " vs limit " << UPPER_FEED_ANGLE_THRESH );
 
 
   if ( temp_roll + ROTATION_STEP >= UPPER_FEED_ANGLE_THRESH)
@@ -473,7 +473,7 @@ double getCurrentRollDegrees(){
   return angles::to_degrees(getCurrentRoll()) + 360;
 }
 
-void fallback();
+
 void callFallbackTimer(double duration)
 {
 
@@ -505,7 +505,7 @@ void callFallbackTimer(double duration)
 }
 
 
-void fallback()
+void fallback(bool emerg)
 {
   lock_pose.lock();
   geometry_msgs::PoseStamped  start_pose=current_pose;
@@ -558,7 +558,8 @@ void fallback()
   }
   //ROS_INFO_STREAM("Publishing twist : ");
   //std::cout << (twist_cmd) << std::endl;
-  publishTwistForDuration(twist_cmd,0.5);
+  if (emerg==true) twist_cmd.twist.angular.x = -1;
+  publishTwistForDuration(twist_cmd,1);
 }
 
 int main(int argc, char **argv)
