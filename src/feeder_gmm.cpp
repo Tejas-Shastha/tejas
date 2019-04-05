@@ -805,18 +805,27 @@ std::vector<std::vector<float>> subSamplePoseDelta(std::vector<std::vector<float
   return pose_delta_subsampled;
 }
 
-void driveToPoseStep(int step_count)
+void driveToPoseStep(int step_count,std::vector<std::vector<float>> pose_delta_subsampled )
 {
+  ros::spinOnce();
 
+  lock_pose.lock();
+  geometry_msgs::PoseStamped temp_pose=current_pose;
+  lock_pose.unlock();
 
+  ROS_INFO_STREAM("Moving to WP" << step_count);
+  geometry_msgs::PoseStamped pose_new = getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled);
+  printPose(temp_pose , "Cur pose: ");
+  printPose(pose_new, "New pose: ");
+  cmd_pos.publish(pose_new);
+  waitForActionCompleted();
+  ROS_INFO_STREAM("Done");
 }
 
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_gmm");
   ros::NodeHandle nh;
-
-
 
   std::vector<std::vector<float>> gmr = getGMRFromCsv(argv[1]);
   std::vector<std::vector<float>> pose_delta = getPoseDeltaFromGMR(gmr);
@@ -844,40 +853,13 @@ int main(int argc, char **argv)
   lock_pose.unlock();
 
 
-
-
-  printPose(initial_pose, "Initial Pose");
-
-  for(int step=0; step<SUB_SAMPLED_SIZE; step++)
-  {
-    ros::spinOnce();
-
-    lock_pose.lock();
-    geometry_msgs::PoseStamped temp_pose=current_pose;
-    lock_pose.unlock();
-
-    ROS_INFO_STREAM("Moving to WP" << step);
-    geometry_msgs::PoseStamped pose_new = getNewPoseAtIndex(initial_pose, step, pose_delta_subsampled);
-    printPose(temp_pose , "Cur pose: ");
-    printPose(pose_new, "New pose: ");
-    cmd_pos.publish(pose_new);
-    waitForActionCompleted();
-    ROS_INFO_STREAM("Done");
-    safePauseFor(2.0);
-  }
-
-
-
-
-
-
 // TODO : Implement the driver below
 
   step_count = 0;
   int prev_step_count = 0;
 
   ros::Rate loop_rate(10);
- /* while(ros::ok())
+  while(ros::ok())
   {
     ros::spinOnce();
 
@@ -887,32 +869,28 @@ int main(int argc, char **argv)
 
 
 
-    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH )
+    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH && step_count >0)
     {
       ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO_STREAM("STEP_DOWN for " << local_force_f << "N.");
+      ROS_INFO_STREAM("STEP_DOWN for " << local_force_f << "N from step " << step_count);
       prev_step_count = step_count--;
-      geometry_msgs::PoseStamped new_pose = getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled);
-      cmd_pos.publish(getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled));
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+      driveToPoseStep(step_count,pose_delta_subsampled);
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-//      if (prev_step_count > step_count &&
-//          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
-//      {
-//        callFallbackTimer(3);
-//      }
+      if (prev_step_count > step_count && step_count==0)
+      {
+        callFallbackTimer(3);
+      }
     }
 
-    else if (local_force_f >= FORCE_F_2_3_THRESH && local_force_f <= FORCE_SAFETY && step_count < SUB_SAMPLED_SIZE)
+    else if (local_force_f >= FORCE_F_2_3_THRESH && local_force_f <= FORCE_SAFETY && step_count < SUB_SAMPLED_SIZE-1)
     {
       ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO_STREAM("STEP_UP for " << local_force_f << "N.");
+      ROS_INFO_STREAM("STEP_UP for " << local_force_f << "N from step " << step_count);
       prev_step_count =  step_count++;
-      cmd_pos.publish(getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled));
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+      driveToPoseStep(step_count,pose_delta_subsampled);
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
@@ -942,6 +920,6 @@ int main(int argc, char **argv)
       fallback(true);
       ros::shutdown();
     }
-  }*/
+  }
   return 0;
 }
