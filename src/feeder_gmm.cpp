@@ -11,8 +11,9 @@
 ///
 ///
 ///
-/// TODO: IMPLEMENT SAFETY ABOVE 1.5N
 
+
+#include <ros/console.h>
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "geometry_msgs/PoseStamped.h"
@@ -91,10 +92,16 @@ geometry_msgs::PoseStamped current_pose, initial_pose;
 void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll,double& pitch, double& yaw)
 {
   tf::Quaternion quat;
+  // Suppress a weird warning that tells me to normalise the quats even though I do that.
+  if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Error) ) ros::console::notifyLoggerLevelsChanged();
   tf::quaternionMsgToTF(orientation,quat);
+  if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info) ) ros::console::notifyLoggerLevelsChanged();
   quat.normalize();
+
   tf::Matrix3x3 mat(quat);
+
   mat.getRPY(roll, pitch,yaw);
+
 }
 
 void waitForActionCompleted()
@@ -640,6 +647,7 @@ std::vector<std::vector<float>> getGMRFromCsv(std::string file)
 std::vector<std::vector<float>> getPoseDeltaFromGMR(std::vector<std::vector<float>> gmr)
 {
 
+
    int RR = gmr.size();
    int CC = 6; // 6 columns for deltas in x,y,z,roll,pitch,yaw
    std::vector<std::vector<float>> pose_delta(RR);
@@ -658,6 +666,8 @@ std::vector<std::vector<float>> getPoseDeltaFromGMR(std::vector<std::vector<floa
    double roll_first, pitch_first, yaw_first;
    getRPYFromQuaternionMSG(first_pose.pose.orientation, roll_first, pitch_first, yaw_first);
 
+
+
 // First row/pose is always 0 since it is the reference point.
    for (int i=0; i<RR; i++)
    {
@@ -671,7 +681,9 @@ std::vector<std::vector<float>> getPoseDeltaFromGMR(std::vector<std::vector<floa
      current_pose.pose.orientation.w = gmr[i][7];
 
      double roll_curr, pitch_curr, yaw_curr;
+
      getRPYFromQuaternionMSG(current_pose.pose.orientation,roll_curr, pitch_curr, yaw_curr);
+
 
      double delta_roll, delta_pitch, delta_yaw;
      delta_roll =  roll_curr - roll_first ;
@@ -685,11 +697,12 @@ std::vector<std::vector<float>> getPoseDeltaFromGMR(std::vector<std::vector<floa
 //     pose_delta[i][4] = delta_pitch;    // Even if there are pitches and yaws due to human error, they need to be suppressed to avoid_discomfort to the user/spillage_.
 //     pose_delta[i][5] = delta_yaw;
    }
+
    return pose_delta;
 }
 
 // Take the actual starting pose from current run, consider the index of the GMR trajectory required, add the delta to take the starting pose to new index
-geometry_msgs::PoseStamped getRelativePoseAtIndex(geometry_msgs::PoseStamped starting_pose, int new_index_in_trajectory, std::vector<std::vector<float>> pose_delta_subsampled )
+geometry_msgs::PoseStamped getNewPoseAtIndex(geometry_msgs::PoseStamped starting_pose, int new_index_in_trajectory, std::vector<std::vector<float>> pose_delta_subsampled )
 {
   geometry_msgs::PoseStamped new_pose;
   new_pose.pose.position.x = starting_pose.pose.position.x + pose_delta_subsampled[new_index_in_trajectory][0];
@@ -707,7 +720,6 @@ geometry_msgs::PoseStamped getRelativePoseAtIndex(geometry_msgs::PoseStamped sta
   tf::quaternionTFToMsg(q_new,new_pose.pose.orientation);
 
   return new_pose;
-
 }
 
 
@@ -793,10 +805,18 @@ std::vector<std::vector<float>> subSamplePoseDelta(std::vector<std::vector<float
   return pose_delta_subsampled;
 }
 
+void driveToPoseStep(int step_count)
+{
+
+
+}
+
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_gmm");
   ros::NodeHandle nh;
+
+
 
   std::vector<std::vector<float>> gmr = getGMRFromCsv(argv[1]);
   std::vector<std::vector<float>> pose_delta = getPoseDeltaFromGMR(gmr);
@@ -804,20 +824,7 @@ int main(int argc, char **argv)
 
   ROS_INFO_STREAM("Size of GMR : " << gmr.size() << " pose_delta : " << pose_delta.size() << " pose_delta_subsampled : " << pose_delta_subsampled.size());
 
-  geometry_msgs::PoseStamped starting_pose;
-  starting_pose.pose.position.x = gmr[0][1]; //columen 0 is index number, dropping it
-  starting_pose.pose.position.y = gmr[0][2];
-  starting_pose.pose.position.z = gmr[0][3];
-  starting_pose.pose.orientation.x = gmr[0][4];
-  starting_pose.pose.orientation.y = gmr[0][5];
-  starting_pose.pose.orientation.z = gmr[0][6];
-  starting_pose.pose.orientation.w = gmr[0][7];
-
-
-
-
   tf::TransformListener tf_listener;
-
 
   ros::Subscriber sub = nh.subscribe("/force_values", 1000, forceGrabber);
   cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
@@ -836,18 +843,41 @@ int main(int argc, char **argv)
   initial_pose=current_pose;
   lock_pose.unlock();
 
-// TODO : Implement the driver below
 
- /* double r,p,y;
-  getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
-  lower_angle_thresh = r;
-  ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
+
+
+  printPose(initial_pose, "Initial Pose");
+
+  for(int step=0; step<SUB_SAMPLED_SIZE; step++)
+  {
+    ros::spinOnce();
+
+    lock_pose.lock();
+    geometry_msgs::PoseStamped temp_pose=current_pose;
+    lock_pose.unlock();
+
+    ROS_INFO_STREAM("Moving to WP" << step);
+    geometry_msgs::PoseStamped pose_new = getNewPoseAtIndex(initial_pose, step, pose_delta_subsampled);
+    printPose(temp_pose , "Cur pose: ");
+    printPose(pose_new, "New pose: ");
+    cmd_pos.publish(pose_new);
+    waitForActionCompleted();
+    ROS_INFO_STREAM("Done");
+    safePauseFor(2.0);
+  }
+
+
+
+
+
+
+// TODO : Implement the driver below
 
   step_count = 0;
   int prev_step_count = 0;
 
   ros::Rate loop_rate(10);
-  while(ros::ok())
+ /* while(ros::ok())
   {
     ros::spinOnce();
 
@@ -857,30 +887,31 @@ int main(int argc, char **argv)
 
 
 
-    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
+    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH )
     {
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(LOWER_CUP);
+      ROS_INFO_STREAM("STEP_DOWN for " << local_force_f << "N.");
       prev_step_count = step_count--;
+      geometry_msgs::PoseStamped new_pose = getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled);
+      cmd_pos.publish(getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled));
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
       ROS_INFO(" ");
 
-      if (prev_step_count > step_count &&
-          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
-      {
-        callFallbackTimer(3);
-      }
+//      if (prev_step_count > step_count &&
+//          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
+//      {
+//        callFallbackTimer(3);
+//      }
     }
 
-    else if (local_force_f >= FORCE_F_2_3_THRESH
-             && local_force_f <= FORCE_SAFETY
-             && checkUpperAngleThreshold())
+    else if (local_force_f >= FORCE_F_2_3_THRESH && local_force_f <= FORCE_SAFETY && step_count < SUB_SAMPLED_SIZE)
     {
       ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(RAISE_CUP);
+      ROS_INFO_STREAM("STEP_UP for " << local_force_f << "N.");
       prev_step_count =  step_count++;
+      cmd_pos.publish(getNewPoseAtIndex(initial_pose, step_count, pose_delta_subsampled));
       ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
       print_once_only=true;
       ROS_INFO("---------------------------------------------------------------------");
@@ -910,10 +941,6 @@ int main(int argc, char **argv)
       ROS_WARN_STREAM("ABORTING SEQUENCE!!");
       fallback(true);
       ros::shutdown();
-    }
-    else
-    {
-//      ROS_INFO("Audio safe");
     }
   }*/
   return 0;
