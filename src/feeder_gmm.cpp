@@ -4,10 +4,10 @@
 /// if force € (FORCE_F_2_3_THRESH, MAX] then state 3 : raise cup
 ///
 /// Fallback velocity functions
-///	Vel.x				                                  Vel.y 
+///	Vel.x				                                  Vel.y
 /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
 ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
-///   90 to 180	  y =  0.004444444*x - 0.8				
+///   90 to 180	  y =  0.004444444*x - 0.8
 ///
 ///
 ///
@@ -30,14 +30,20 @@
 #include <hri_package/Sens_Force.h>
 #include <kinova_msgs/PoseVelocity.h>
 
+#include <fstream>
+#include <vector>
+#include <iterator>
+#include <string>
+#include <algorithm>
+#include <boost/algorithm/string.hpp>
 
-#define FORCE_F_1_2_THRESH 0.3
+
+#define FORCE_F_1_2_THRESH 0.05
 #define FORCE_F_2_3_THRESH 0.5
+#define NUMBER_OF_ARM_SUB_STATES 10
+#define UPPER_FEED_ANGLE_THRESH 180.00 // was 140
 #define FORCE_SAFETY 5
-#define UPPER_FEED_ANGLE_THRESH 178 // Do not raise this above 175, bad things happen.
-#define ROTATION_STEP 5
-
-
+#define SUB_SAMPLED_SIZE 10
 
 #define ARC_DOWN 1
 #define ARC_UP 2
@@ -51,14 +57,22 @@
 #define BASE_FRAME "j2s7s300_link_base"
 #define SENSOR_FRAME "forcesensor"
 
+
 #define MAX_STEPS 200
 #define VEL_LIN_MAX 0.04
 #define VEL_ANG_MAX 0.4
 #define VEL_CMD_DURATION 0.8
 
+#define ACTION_DOWN 0
+#define ACTION_STAY 1
+#define ACTION_UP 2
+
+
 double lower_angle_thresh = 85;
-float thresh_lin = 0.02;
+float thresh_lin = 0.01;
 float thresh_ang = 0.05;
+double rotation_step;
+bool emergency = false;
 
 int step_count;
 
@@ -68,7 +82,6 @@ std::mutex lock_status;
 std::mutex lock_proc;
 std::mutex lock_force;
 std::mutex lock_emerg;
-bool emergency = false;
 double force_f, force_b;
 bool processing=false;
 ros::Publisher cmd_pos;
@@ -112,7 +125,7 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,d
   {
   /// END EFFECTOR FRAME  Z-forward-blue, Y-up-green, X-left-red
   case ARC_DOWN :
-    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); //Turn down
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(rotation_step),angles::from_degrees(0),angles::from_degrees(0)); //Turn down
     start_pose.header.frame_id=END_EFF_FRAME;
     start_pose.pose.position.x=0;
     start_pose.pose.position.y=0.01;  // Slightly up
@@ -120,7 +133,7 @@ void setPoseForDirection(int direction, geometry_msgs::PoseStamped& start_pose,d
     start_pose.pose.orientation = quat;
     break;
   case ARC_UP :
-    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0));
+    quat =  tf::createQuaternionMsgFromRollPitchYaw(angles::from_degrees(-rotation_step),angles::from_degrees(0),angles::from_degrees(0));
     start_pose.header.frame_id=END_EFF_FRAME;
     start_pose.pose.position.x=0;
     start_pose.pose.position.y=-0.01;
@@ -198,33 +211,6 @@ geometry_msgs::TwistStamped getTwistForDirection(int direction)
 
 bool checkUpperAngleThreshold();
 bool checkLowerAngleThreshold();
-void fallback(bool emerg=false);
-
-bool isForceSafe()
-{
-  double local_force_f;
-  lock_force.lock();
-  local_force_f=force_f;
-  lock_force.unlock();
-
-  if (local_force_f >= FORCE_SAFETY)
-  {
-    ROS_WARN_STREAM("PAIN THRESHOLD BREACHED!!");
-    return false;
-  }
-  else
-    return true;
-}
-
-bool isAudioSafe()
-{
-  lock_emerg.lock();
-  bool emerg = emergency;
-  lock_emerg.unlock();
-
-  if (emerg) ROS_WARN_STREAM("AUDIO EMERGENCY DETECTED!!");
-  return !emerg;
-}
 
 void publishTwistForDuration(geometry_msgs::TwistStamped twist_msg, double duration)
 {
@@ -271,12 +257,40 @@ void positionControlDriveForDirection(int direction, double distance)
   cmd_pos.publish(pose_in_base);
 }
 
+bool isForceSafe()
+{
+  double local_force_f;
+  lock_force.lock();
+  local_force_f=force_f;
+  lock_force.unlock();
+
+  if (local_force_f >= FORCE_SAFETY)
+  {
+    ROS_WARN_STREAM("PAIN THRESHOLD BREACHED!!");
+    return false;
+  }
+  else
+    return true;
+}
+
+bool isAudioSafe()
+{
+  lock_emerg.lock();
+  bool emerg = emergency;
+  lock_emerg.unlock();
+
+  if (emerg) ROS_WARN_STREAM("AUDIO EMERGENCY DETECTED!!");
+  return !emerg;
+}
+
+void fallback(bool emerg=false);
+
 void driveToRollGoalWithVelocity(int direction)
 {
   if(direction == RAISE_CUP)
-    ROS_INFO_STREAM("Raise Cup");
+    ROS_INFO_STREAM("Raise cup");
   else if (direction == LOWER_CUP)
-    ROS_INFO_STREAM("Lower Cup");
+    ROS_INFO_STREAM("Lower cup");
   else
   {
     ROS_ERROR_STREAM("Wrong direction given!!");
@@ -296,7 +310,7 @@ void driveToRollGoalWithVelocity(int direction)
 
   goal_pose = start_pose;
 
-  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?ROTATION_STEP:-ROTATION_STEP),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
+  tf::Quaternion q_rot = tf::createQuaternionFromRPY(angles::from_degrees( direction==RAISE_CUP?rotation_step:-rotation_step),angles::from_degrees(0),angles::from_degrees(0)); // Rotate about x by 20 degrees
   tf::Quaternion q_start; tf::quaternionMsgToTF(start_pose.pose.orientation, q_start);
   tf::Quaternion q_goal = q_start*q_rot;
 
@@ -315,15 +329,19 @@ void driveToRollGoalWithVelocity(int direction)
     getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pit, temp_yaw);
     getRPYFromQuaternionMSG(start_pose.pose.orientation, start_rol, start_pit, start_yaw);
 
+    if (goal_rol < 0 ) goal_rol = goal_rol + angles::from_degrees(360);
+    if (temp_rol < 0 ) temp_rol = temp_rol + angles::from_degrees(360);
+
     del_rol = goal_rol - temp_rol;
 
     if (std::fabs(del_rol)>=thresh_ang)
     {
+      float linear_vel = 0.02;
       geometry_msgs::TwistStamped twist_msg;
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
       // Comment out next line ONLY if using end-effector mode ie: Mode 1 on jostick is active and 4th blue LED on far right is active.
-//      twist_msg.twist.linear.z = direction == LOWER_CUP? -thresh_lin : thresh_lin;
+//      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
@@ -367,7 +385,6 @@ void moveCup(int direction, double duration=VEL_CMD_DURATION, double distance=0.
   return;
 }
 
-
 void poseGrabber(geometry_msgs::PoseStamped pose)
 {
   lock_pose.lock();
@@ -408,7 +425,7 @@ void waitForPoseDataAvailable()
   }
   ROS_INFO("Pose data available");
 }
-double getCurrentRollDegrees();
+
 bool checkUpperAngleThreshold()
 {
   geometry_msgs::PoseStamped temp_pose;
@@ -417,16 +434,10 @@ bool checkUpperAngleThreshold()
   temp_pose=current_pose;
   lock_pose.unlock();
 
-  double temp_roll, temp_pitch, temp_yaw;/*
-  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);*/
-  temp_roll = getCurrentRollDegrees();
+  double temp_roll, temp_pitch, temp_yaw;
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
 
-//  ROS_INFO_STREAM("Checking current roll " << temp_roll <<
-//                  " + " << ROTATION_STEP <<
-//                  " vs limit " << UPPER_FEED_ANGLE_THRESH );
-
-
-  if ( temp_roll + ROTATION_STEP >= UPPER_FEED_ANGLE_THRESH)
+  if ( angles::to_degrees(temp_roll) > UPPER_FEED_ANGLE_THRESH )
   {
     ROS_WARN_STREAM("MAX UPPER FEED ANGLE REACHED");
     return false;
@@ -446,17 +457,16 @@ bool checkLowerAngleThreshold()
   lock_pose.unlock();
 
   double temp_roll, temp_pitch, temp_yaw;
-//  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
-  temp_roll = getCurrentRollDegrees();
+  getRPYFromQuaternionMSG(temp_pose.pose.orientation,temp_roll, temp_pitch, temp_yaw);
 
-  if (temp_roll - (int)angles::to_degrees(lower_angle_thresh) < ROTATION_STEP/2 )
+  if ((int)angles::to_degrees(temp_roll) - (int)angles::to_degrees(lower_angle_thresh) < rotation_step/2 && temp_roll > 0)
   {
-//    ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << temp_roll);
+    //ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << angles::to_degrees(temp_roll));
     return false;
   }
   else
   {
-//   ROS_INFO_STREAM("Current roll: " << (temp_roll));
+//   ROS_INFO_STREAM("Current roll: " << sangles::to_degrees(temp_roll));
    return true;
   }
 }
@@ -470,15 +480,9 @@ double getCurrentRoll()
   double temp_rol, temp_pitch, temp_yaw;
   getRPYFromQuaternionMSG(temp_pose.pose.orientation, temp_rol, temp_pitch, temp_yaw);
 
-  return temp_rol;
-}
 
-double getCurrentRollDegrees(){
-  double temp_roll = getCurrentRoll();
-  if (temp_roll >= 0)  return angles::to_degrees(getCurrentRoll());
-  return angles::to_degrees(getCurrentRoll()) + 360;
+  return temp_rol<0?temp_rol+angles::from_degrees(360):temp_rol;
 }
-
 
 void callFallbackTimer(double duration)
 {
@@ -506,10 +510,9 @@ void callFallbackTimer(double duration)
   ROS_WARN_STREAM("Time out! Initialising fallback");
  // moveCup(TRANSLATE_BACK);
   fallback();
+  sleep(1);
   ros::shutdown();
-  exit(1);
 }
-
 
 void fallback(bool emerg)
 {
@@ -525,7 +528,7 @@ void fallback(bool emerg)
   // ROS_INFO_STREAM("Current yaw float: " << angles::to_degrees(yaw) << " int " << yaw_degrees);
 
   geometry_msgs::TwistStamped twist_cmd;
- 
+
   // y = mx + c
   double m = 0.004444444;
   double velx_c = 0.8;
@@ -533,17 +536,17 @@ void fallback(bool emerg)
 
 
   /// Fallback velocity functions
-  ///	Vel.x				                                  Vel.y 
+  ///	Vel.x				                                  Vel.y
   /// -180 to -90	  y =  0.004444444*x + 0.8			  -180 to   0	y =  0.004444444*x + 0.4
   ///  -90 to  90	  y = -0.004444444*x 			           0 to 180	y = -0.004444444*x + 0.4
-  ///   90 to 180	  y =  0.004444444*x - 0.8				
+  ///   90 to 180	  y =  0.004444444*x - 0.8
 
   if (yaw_degrees >= -180 && yaw_degrees < -90)
   {
     //ROS_INFO_STREAM("Sector 1");
     twist_cmd.twist.linear.x = m * yaw_degrees + velx_c;
     twist_cmd.twist.linear.y = m * yaw_degrees + vely_c;
-  }  
+  }
   else if (yaw_degrees >= -90 &&  yaw_degrees <0)
   {
     //ROS_INFO_STREAM("Sector 2");
@@ -569,6 +572,145 @@ void fallback(bool emerg)
 }
 
 
+class CSVReader
+{
+    std::string fileName;
+    std::string delimeter;
+
+public:
+    CSVReader(std::string filename, std::string delm = ",") :
+        fileName(filename), delimeter(delm)
+    { }
+
+    // Function to fetch data from a CSV File
+    std::vector<std::vector<std::string> > getData();
+};
+
+std::vector<std::vector<std::string> > CSVReader::getData()
+{
+    std::ifstream file(fileName);
+
+    std::vector<std::vector<std::string> > dataList;
+
+    std::string line = "";
+    // Iterate through each line and split the content using delimeter
+    while (getline(file, line))
+    {
+        std::vector<std::string> vec;
+        boost::algorithm::split(vec, line, boost::is_any_of(delimeter));
+        dataList.push_back(vec);
+    }
+    // Close the File
+    file.close();
+
+    return dataList;
+}
+
+std::vector<std::vector<float>> getGMRFromCsv(std::string file)
+{
+
+   CSVReader reader(file);
+
+   std::vector<std::vector<std::string> > dataList = reader.getData();
+
+   int RR = dataList.size();
+   int CC = dataList[0].size();
+    std::vector<std::vector<float>> gmr(RR);
+    for ( int i = 0 ; i < RR ; i++ )
+       gmr[i].resize(CC);
+
+  ROS_INFO_STREAM("Fetching GMR data from " << file );
+  for (int i=0; i<dataList.size(); i++)
+   {
+     std::vector<std::string> vec = dataList[i];
+     for(int j=0; j< vec.size();j++ )
+     {
+       gmr[i][j]= std::stof(vec[j]);
+     }
+   }
+    return gmr;
+}
+
+
+/**
+ * @brief Calculate the delta pose vector i.e.: the difference of each pose from the first pose
+ * @param gmr
+ * @return pose_delta
+ */
+std::vector<std::vector<float>> getPoseDeltaFromGMR(std::vector<std::vector<float>> gmr)
+{
+
+   int RR = gmr.size();
+   int CC = 6; // 6 columns for deltas in x,y,z,roll,pitch,yaw
+   std::vector<std::vector<float>> pose_delta(RR);
+   for ( int i = 0 ; i < RR ; i++ )
+      pose_delta[i].resize(CC);
+
+
+   geometry_msgs::PoseStamped first_pose;
+   first_pose.pose.position.x = gmr[0][1]; //columen 0 is index number, dropping it
+   first_pose.pose.position.y = gmr[0][2];
+   first_pose.pose.position.z = gmr[0][3];
+   first_pose.pose.orientation.x = gmr[0][4];
+   first_pose.pose.orientation.y = gmr[0][5];
+   first_pose.pose.orientation.z = gmr[0][6];
+   first_pose.pose.orientation.w = gmr[0][7];
+   double roll_first, pitch_first, yaw_first;
+   getRPYFromQuaternionMSG(first_pose.pose.orientation, roll_first, pitch_first, yaw_first);
+
+// First row/pose is always 0 since it is the reference point.
+   for (int i=0; i<RR; i++)
+   {
+     geometry_msgs::PoseStamped current_pose;
+     current_pose.pose.position.x = gmr[i][1];  //columen 0 is index number, dropping it
+     current_pose.pose.position.y = gmr[i][2];
+     current_pose.pose.position.z = gmr[i][3];
+     current_pose.pose.orientation.x = gmr[i][4];
+     current_pose.pose.orientation.y = gmr[i][5];
+     current_pose.pose.orientation.z = gmr[i][6];
+     current_pose.pose.orientation.w = gmr[i][7];
+
+     double roll_curr, pitch_curr, yaw_curr;
+     getRPYFromQuaternionMSG(current_pose.pose.orientation,roll_curr, pitch_curr, yaw_curr);
+
+     double delta_roll, delta_pitch, delta_yaw;
+     delta_roll =  roll_curr - roll_first ;
+     delta_pitch = pitch_curr - pitch_first ;
+     delta_yaw = yaw_curr - yaw_first;
+
+     pose_delta[i][0] = current_pose.pose.position.x - first_pose.pose.position.x;
+     pose_delta[i][1] = current_pose.pose.position.y - first_pose.pose.position.y;
+     pose_delta[i][2] = current_pose.pose.position.z - first_pose.pose.position.z;
+     pose_delta[i][3] = delta_roll; // Forward feeding approach changes only roll. Change in pitch and yaw <1° and hence ignored. Direct addition of single euler angle works between quaternions. NOT multiple angles.
+//     pose_delta[i][4] = delta_pitch;    // Even if there are pitches and yaws due to human error, they need to be suppressed to avoid_discomfort to the user/spillage_.
+//     pose_delta[i][5] = delta_yaw;
+   }
+   return pose_delta;
+}
+
+// Take the actual starting pose from current run, consider the index of the GMR trajectory required, add the delta to take the starting pose to new index
+geometry_msgs::PoseStamped getRelativePoseAtIndex(geometry_msgs::PoseStamped starting_pose, int new_index_in_trajectory, std::vector<std::vector<float>> pose_delta_subsampled )
+{
+  geometry_msgs::PoseStamped new_pose;
+  new_pose.pose.position.x = starting_pose.pose.position.x + pose_delta_subsampled[new_index_in_trajectory][0];
+  new_pose.pose.position.y = starting_pose.pose.position.y + pose_delta_subsampled[new_index_in_trajectory][1];
+  new_pose.pose.position.z = starting_pose.pose.position.z + pose_delta_subsampled[new_index_in_trajectory][2];
+
+  double starting_roll, starting_pitch, starting_yaw, new_roll, new_pitch, new_yaw;
+  getRPYFromQuaternionMSG(starting_pose.pose.orientation, starting_roll, starting_pitch, starting_yaw);
+  new_roll = starting_roll + pose_delta_subsampled[new_index_in_trajectory][3];
+  new_pitch = starting_pitch + pose_delta_subsampled[new_index_in_trajectory][4];
+  new_yaw = starting_yaw+ pose_delta_subsampled[new_index_in_trajectory][5];
+
+  tf::Quaternion q_new = tf::createQuaternionFromRPY(new_roll, new_pitch, new_yaw);
+  q_new.normalize();
+  tf::quaternionTFToMsg(q_new,new_pose.pose.orientation);
+
+  return new_pose;
+
+}
+
+
 void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
 {
   lock_emerg.lock();
@@ -576,13 +718,106 @@ void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
   lock_emerg.unlock();
 }
 
+void safePauseFor(float duration)
+{
+  ros::Time start = ros::Time::now();
+  ros::Rate loop_rate(10);
+  while(ros::Time::now()-start < ros::Duration(duration))
+  {
+    ros::spinOnce();
+    if (!isAudioSafe() || !isForceSafe())
+    {
+      ROS_WARN_STREAM("ABORTING SEQUENCE!!");
+      fallback(true);
+      ros::shutdown();
+    }
+    loop_rate.sleep();
+  }
+}
+
+
+void printPose(geometry_msgs::PoseStamped pose, std::string text)
+{
+  double roll, pitch, yaw;
+  getRPYFromQuaternionMSG(pose.pose.orientation, roll, pitch, yaw);
+  ROS_INFO_STREAM(text << pose.pose.position.x << " "
+                  << pose.pose.position.y << " "
+                  << pose.pose.position.z << " "
+                  << angles::to_degrees(roll) << " "
+                  << angles::to_degrees(pitch) << " "
+                  << angles::to_degrees(yaw) << " " );
+}
+
+void printGMRRow(std::vector<std::vector<float>> gmr, int row, std::string text)
+{
+
+    double roll, pitch, yaw;
+    geometry_msgs::PoseStamped pose;
+    pose.pose.position.x = gmr[row][1];
+    pose.pose.position.y = gmr[row][2];
+    pose.pose.position.z = gmr[row][3];
+    pose.pose.orientation.x = gmr[row][4];
+    pose.pose.orientation.y = gmr[row][5];
+    pose.pose.orientation.z = gmr[row][6];
+    pose.pose.orientation.w = gmr[row][7];
+
+    getRPYFromQuaternionMSG(pose.pose.orientation, roll, pitch, yaw);
+
+    ROS_INFO_STREAM(text << pose.pose.position.x << " "
+                    << pose.pose.position.y << " "
+                    << pose.pose.position.z << " "
+                    << angles::to_degrees(roll) << " "
+                    << angles::to_degrees(pitch) << " "
+                    << angles::to_degrees(yaw) << " " );
+
+}
+
+std::vector<std::vector<float>> subSamplePoseDelta(std::vector<std::vector<float>> pose_delta, int resultant_length)
+{
+  int sampling_freq = pose_delta.size()/resultant_length;
+  std::vector<std::vector<float>> pose_delta_subsampled(resultant_length);
+  // Resize the subsampled set to have the number of rows as required by resultant length but number of columns same as pose_delta
+  for(int i=0; i< resultant_length; i++)
+  {
+    pose_delta_subsampled[i].resize(pose_delta[0].size());
+  }
+
+  // Subsample pose_delta according to sampling frequency
+  for (int i=0; i<resultant_length; i++)
+  {
+    pose_delta_subsampled[i] = pose_delta[i*sampling_freq];
+  }
+
+
+
+  return pose_delta_subsampled;
+}
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "feeder_straight_1D");
+  ros::init(argc, argv, "feeder_gmm");
   ros::NodeHandle nh;
 
+  std::vector<std::vector<float>> gmr = getGMRFromCsv(argv[1]);
+  std::vector<std::vector<float>> pose_delta = getPoseDeltaFromGMR(gmr);
+  std::vector<std::vector<float>> pose_delta_subsampled = subSamplePoseDelta(pose_delta, SUB_SAMPLED_SIZE);
+
+  ROS_INFO_STREAM("Size of GMR : " << gmr.size() << " pose_delta : " << pose_delta.size() << " pose_delta_subsampled : " << pose_delta_subsampled.size());
+
+  geometry_msgs::PoseStamped starting_pose;
+  starting_pose.pose.position.x = gmr[0][1]; //columen 0 is index number, dropping it
+  starting_pose.pose.position.y = gmr[0][2];
+  starting_pose.pose.position.z = gmr[0][3];
+  starting_pose.pose.orientation.x = gmr[0][4];
+  starting_pose.pose.orientation.y = gmr[0][5];
+  starting_pose.pose.orientation.z = gmr[0][6];
+  starting_pose.pose.orientation.w = gmr[0][7];
+
+
+
+
   tf::TransformListener tf_listener;
+
 
   ros::Subscriber sub = nh.subscribe("/force_values", 1000, forceGrabber);
   cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
@@ -597,16 +832,13 @@ int main(int argc, char **argv)
   double local_force_f;
   bool print_once_only=true;
 
-  ROS_INFO_STREAM("Initial rotation from " << angles::to_degrees(getCurrentRoll()));
-  moveCup(RAISE_CUP, VEL_CMD_DURATION);
-  ros::Duration(1.0).sleep(); // Allow inertial settlement
-  ros::spinOnce();
-
   lock_pose.lock();
   initial_pose=current_pose;
   lock_pose.unlock();
 
-  double r,p,y;
+// TODO : Implement the driver below
+
+ /* double r,p,y;
   getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
   lower_angle_thresh = r;
   ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
@@ -683,6 +915,6 @@ int main(int argc, char **argv)
     {
 //      ROS_INFO("Audio safe");
     }
-  }
+  }*/
   return 0;
 }

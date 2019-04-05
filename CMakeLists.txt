@@ -72,6 +72,10 @@ add_executable(feeder_sideways src/feeder_sideways.cpp)
 add_dependencies(feeder_sideways ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_sideways	${catkin_LIBRARIES})
 
+add_executable(feeder_gmm src/feeder_gmm.cpp)
+add_dependencies(feeder_gmm ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(feeder_gmm	${catkin_LIBRARIES})
+
 add_executable(tf_caster src/tf_caster.cpp)
 add_dependencies(tf_caster ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(tf_caster	${catkin_LIBRARIES})

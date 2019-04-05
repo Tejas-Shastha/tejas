@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+    <!--include file="$(find tejas)/launch/drink_motion.launch" /-->
+
+
+    <arg name="name"/>
+
+    <arg name="user"/>
+
+    <arg name="algorithm" default="pi" />
+
+    <node name="feeder_gmm" pkg="tejas" type="feeder_gmm"
+        args="$(find tejas)/resources/gmm/gmr.csv" output="screen"/>
+
+
+
+</launch>
