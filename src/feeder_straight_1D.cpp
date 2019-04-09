@@ -29,12 +29,13 @@
 
 #include <hri_package/Sens_Force.h>
 #include <kinova_msgs/PoseVelocity.h>
+#include "../include/projectintegration.hpp"
 
 
 #define FORCE_F_1_2_THRESH 0.3
 #define FORCE_F_2_3_THRESH 0.5
 #define FORCE_SAFETY 5
-#define UPPER_FEED_ANGLE_THRESH 178 // Do not raise this above 175, bad things happen.
+#define UPPER_FEED_ANGLE_THRESH 170 // Do not raise this above 175, bad things happen.
 #define ROTATION_STEP 5
 
 
@@ -323,7 +324,7 @@ void driveToRollGoalWithVelocity(int direction)
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
       // Comment out next line ONLY if using end-effector mode ie: Mode 1 on jostick is active and 4th blue LED on far right is active.
-//      twist_msg.twist.linear.z = direction == LOWER_CUP? -thresh_lin : thresh_lin;
+      twist_msg.twist.linear.z = direction == LOWER_CUP? -thresh_lin : thresh_lin;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
@@ -336,7 +337,10 @@ void driveToRollGoalWithVelocity(int direction)
       {
         ROS_WARN("ABORTING SEQUENCE!!!");
         fallback(true);
-        ros::shutdown();
+        ros::Duration dur(1);
+        dur.sleep();
+        finished_task();
+        break;
       }
     }
     else
@@ -425,10 +429,30 @@ bool checkUpperAngleThreshold()
 //                  " + " << ROTATION_STEP <<
 //                  " vs limit " << UPPER_FEED_ANGLE_THRESH );
 
+//  ros::spinOnce();
+//  lock_force.lock();
+//  double force=force_f;
+//  lock_force.unlock();
+
+//  if (!isAudioSafe() || !isForceSafe())
+//  {
+//    ROS_WARN_STREAM("ABORTING SEQUENCE!!. F = " << force);
+//    fallback(true);
+//    ros::Duration dur(1);
+//    dur.sleep();
+//    finished_task();
+//  }
+
 
   if ( temp_roll + ROTATION_STEP >= UPPER_FEED_ANGLE_THRESH)
   {
-    ROS_WARN_STREAM("MAX UPPER FEED ANGLE REACHED");
+//    geometry_msgs::TwistStamped zero;
+//    zero.twist.linear.x = zero.twist.linear.y = zero.twist.linear.z = zero.twist.angular.x = zero.twist.angular.y = zero.twist.angular.z =0;
+//    zero.header.stamp = ros::Time::now();
+//    cmd_vel.publish(zero);
+    ROS_WARN_STREAM("MAX UPPER FEED ANGLE REACHED. F = "
+//                    << force <<
+                    " R = " << temp_roll);
     return false;
   }
   else
@@ -451,12 +475,12 @@ bool checkLowerAngleThreshold()
 
   if (temp_roll - (int)angles::to_degrees(lower_angle_thresh) < ROTATION_STEP/2 )
   {
-//    ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << temp_roll);
+    ROS_WARN_STREAM("MAX LOWER ANGLE REACHED. LIMIT: " << angles::to_degrees(lower_angle_thresh) << " CURRENT: " << temp_roll);
     return false;
   }
   else
   {
-//   ROS_INFO_STREAM("Current roll: " << (temp_roll));
+   ROS_INFO_STREAM("Current roll: " << (temp_roll));
    return true;
   }
 }
@@ -506,8 +530,7 @@ void callFallbackTimer(double duration)
   ROS_WARN_STREAM("Time out! Initialising fallback");
  // moveCup(TRANSLATE_BACK);
   fallback();
-  ros::shutdown();
-  exit(1);
+  finished_task();
 }
 
 
@@ -564,7 +587,7 @@ void fallback(bool emerg)
   }
   //ROS_INFO_STREAM("Publishing twist : ");
   //std::cout << (twist_cmd) << std::endl;
-  if (emerg==true) twist_cmd.twist.angular.x = -1;
+  if (emerg==true) twist_cmd.twist.angular.x = -0.5;
   publishTwistForDuration(twist_cmd,1);
 }
 
@@ -573,7 +596,23 @@ void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
 {
   lock_emerg.lock();
   if (msg->result == "talk") emergency = true;
+  else emergency = false;
   lock_emerg.unlock();
+}
+
+void projState_rawCallback(std_msgs::String msg)
+{
+  if(msg.data=="Start Task 3")
+  {
+    lock_pose.lock();
+    initial_pose=current_pose;
+    lock_pose.unlock();
+
+    double r,p,y;
+    getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
+    lower_angle_thresh = r;
+    ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
+  }
 }
 
 
@@ -581,6 +620,8 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_straight_1D");
   ros::NodeHandle nh;
+
+  projInteg_init(nh, argc, argv);
 
   tf::TransformListener tf_listener;
 
@@ -591,25 +632,28 @@ int main(int argc, char **argv)
   ros::Subscriber control_status = nh.subscribe("/RobotControl/Status",1000, statusGrabber );
   ros::Publisher arm_pose_pub = nh.advertise<std_msgs::Int32>("/arm_state", 1000);
   ros::Subscriber audio_emerg = nh.subscribe("/audio_emergency",1000, audioGrabber );
+  ros::Subscriber projState_sub = nh.subscribe("/ProjectState", 1, projState_rawCallback);
 
   waitForPoseDataAvailable();
 
   double local_force_f;
   bool print_once_only=true;
 
-  ROS_INFO_STREAM("Initial rotation from " << angles::to_degrees(getCurrentRoll()));
-  moveCup(RAISE_CUP, VEL_CMD_DURATION);
-  ros::Duration(1.0).sleep(); // Allow inertial settlement
-  ros::spinOnce();
+  // No initial rotation because Felix's code already takes care of this
+//  ROS_INFO_STREAM("Initial rotation from " << angles::to_degrees(getCurrentRoll()));
+//  moveCup(RAISE_CUP, VEL_CMD_DURATION);
+//  ros::Duration(1.0).sleep(); // Allow inertial settlement
+//  ros::spinOnce();
 
-  lock_pose.lock();
-  initial_pose=current_pose;
-  lock_pose.unlock();
+  // No longer initialising lower angle here, but from projState_rawCallback whenever this node is activated
+//  lock_pose.lock();
+//  initial_pose=current_pose;
+//  lock_pose.unlock();
 
-  double r,p,y;
-  getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
-  lower_angle_thresh = r;
-  ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
+//  double r,p,y;
+//  getRPYFromQuaternionMSG(initial_pose.pose.orientation,r,p,y);
+//  lower_angle_thresh = r;
+//  ROS_INFO_STREAM("Lower feed angle thresh set to " << angles::to_degrees(lower_angle_thresh));
 
   step_count = 0;
   int prev_step_count = 0;
@@ -619,69 +663,74 @@ int main(int argc, char **argv)
   {
     ros::spinOnce();
 
-    lock_force.lock();
-    local_force_f=force_f;
-    lock_force.unlock();
+    if(isActive()){
+      lock_force.lock();
+      local_force_f=force_f;
+      lock_force.unlock();
 
 
 
-    if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
-    {
-      ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(LOWER_CUP);
-      prev_step_count = step_count--;
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
-      print_once_only=true;
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO(" ");
-
-      if (prev_step_count > step_count &&
-          std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
+      if (local_force_f >= 0  && local_force_f <= FORCE_F_1_2_THRESH  && checkLowerAngleThreshold())
       {
-        callFallbackTimer(3);
+        ROS_INFO("---------------------------------------------------------------------");
+        driveToRollGoalWithVelocity(LOWER_CUP);
+        prev_step_count = step_count--;
+        ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+        print_once_only=true;
+        ROS_INFO("---------------------------------------------------------------------");
+        ROS_INFO(" ");
+
+        if (prev_step_count > step_count &&
+            std::fabs((int)angles::to_degrees(getCurrentRoll()) - (int)angles::to_degrees(lower_angle_thresh)) <=  ROTATION_STEP/2  )
+        {
+          callFallbackTimer(3);
+        }
       }
-    }
 
-    else if (local_force_f >= FORCE_F_2_3_THRESH
-             && local_force_f <= FORCE_SAFETY
-             && checkUpperAngleThreshold())
-    {
-      ROS_INFO("---------------------------------------------------------------------");
-      driveToRollGoalWithVelocity(RAISE_CUP);
-      prev_step_count =  step_count++;
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
-      print_once_only=true;
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO(" ");
-    }
+      else if (local_force_f >= FORCE_F_2_3_THRESH
+               && local_force_f <= FORCE_SAFETY
+               && checkUpperAngleThreshold())
+      {
+        ROS_INFO("---------------------------------------------------------------------");
+        driveToRollGoalWithVelocity(RAISE_CUP);
+        prev_step_count =  step_count++;
+        ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+        print_once_only=true;
+        ROS_INFO("---------------------------------------------------------------------");
+        ROS_INFO(" ");
+      }
 
-    else if (print_once_only)
-    {
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO_STREAM("Do nothing.");
-      print_once_only=false;
-      ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
-      ROS_INFO("---------------------------------------------------------------------");
-      ROS_INFO(" ");
+      else if (print_once_only)
+      {
+        ROS_INFO("---------------------------------------------------------------------");
+        ROS_INFO_STREAM("Do nothing.");
+        print_once_only=false;
+        ROS_WARN_STREAM("Step : " << prev_step_count << " -> " << step_count  << " @ roll : " << angles::to_degrees(getCurrentRoll()));
+        ROS_INFO("---------------------------------------------------------------------");
+        ROS_INFO(" ");
 
-    }
+      }
 
 
-    loop_rate.sleep();
-    std_msgs::Int32 arm_pose_msg;
-    arm_pose_msg.data=step_count;
-    arm_pose_pub.publish(arm_pose_msg);
-    ros::spinOnce();
+      loop_rate.sleep();
+      std_msgs::Int32 arm_pose_msg;
+      arm_pose_msg.data=step_count;
+      arm_pose_pub.publish(arm_pose_msg);
+      ros::spinOnce();
 
-    if (!isAudioSafe())
-    {
-      ROS_WARN_STREAM("ABORTING SEQUENCE!!");
-      fallback(true);
-      ros::shutdown();
-    }
-    else
-    {
-//      ROS_INFO("Audio safe");
+      if (!isAudioSafe())
+      {
+        ROS_WARN_STREAM("ABORTING SEQUENCE!!");
+        fallback(true);
+        ros::Duration dur(1);
+        dur.sleep();
+        finished_task();
+        break;
+      }
+      else
+      {
+  //      ROS_INFO("Audio safe");
+      }
     }
   }
   return 0;

@@ -20,6 +20,7 @@
 #include "angles/angles.h"
 #include "std_msgs/Int32.h"
 #include "audio_emergency/AudioMessage.h"
+#include "../include/projectintegration.hpp"
 
 
 #include "geometry_msgs/Vector3.h"
@@ -340,7 +341,7 @@ void driveToRollGoalWithVelocity(int direction)
       twist_msg.twist.linear.x = 0;
       twist_msg.twist.linear.y = 0;
       // Comment out next line ONLY if using end-effector mode ie: Mode 1 on jostick is active and 4th blue LED on far right is active.
-//      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
+      twist_msg.twist.linear.z = direction==RAISE_CUP ? linear_vel : -linear_vel;
       twist_msg.twist.angular.x= del_rol>0?VEL_ANG_MAX:-VEL_ANG_MAX;
       twist_msg.twist.angular.y = 0;
       twist_msg.twist.angular.z= 0;
@@ -353,7 +354,7 @@ void driveToRollGoalWithVelocity(int direction)
       {
         ROS_WARN("ABORTING SEQUENCE!!!");
         fallback(true);
-        ros::shutdown();
+        finished_task();
       }
     }
     else
@@ -510,7 +511,7 @@ void callFallbackTimer(double duration)
  // moveCup(TRANSLATE_BACK);
   fallback();
   sleep(1);
-  ros::shutdown();
+  finished_task();
 }
 
 void fallback(bool emerg)
@@ -676,6 +677,7 @@ void audioGrabber(audio_emergency::AudioMessage::ConstPtr msg)
 {
   lock_emerg.lock();
   if (msg->result == "talk") emergency = true;
+  else emergency = false;
   lock_emerg.unlock();
 }
 
@@ -690,7 +692,7 @@ void safePauseFor(float duration)
     {
       ROS_WARN_STREAM("ABORTING SEQUENCE!!");
       fallback(true);
-      ros::shutdown();
+      finished_task();
     }
     loop_rate.sleep();
   }
@@ -700,9 +702,9 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "feeder_policy_drive");
   ros::NodeHandle nh;
+  projInteg_init(nh, argc, argv);
 
   tf::TransformListener tf_listener;
-
 
   ros::Subscriber sub = nh.subscribe("/force_values", 1000, forceGrabber);
   cmd_vel = nh.advertise<geometry_msgs::TwistStamped>("/RobotControl/VelocityControl", 1000);
@@ -837,7 +839,7 @@ int main(int argc, char **argv)
     {
       ROS_WARN_STREAM("ABORTING SEQUENCE!!");
       fallback(true);
-      ros::shutdown();
+      finished_task();
     }
 
 

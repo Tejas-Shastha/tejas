@@ -60,11 +60,11 @@ add_executable(feeder_straight src/feeder_straight.cpp)
 add_dependencies(feeder_straight ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_straight	${catkin_LIBRARIES})
 
-add_executable(feeder_policy_drive src/feeder_policy_drive.cpp)
+add_executable(feeder_policy_drive src/feeder_policy_drive.cpp  src/projectintegration.cpp)
 add_dependencies(feeder_policy_drive ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_policy_drive	${catkin_LIBRARIES})
 
-add_executable(feeder_straight_1D src/feeder_straight_1D.cpp)
+add_executable(feeder_straight_1D src/feeder_straight_1D.cpp src/projectintegration.cpp)
 add_dependencies(feeder_straight_1D ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(feeder_straight_1D	${catkin_LIBRARIES})
 
