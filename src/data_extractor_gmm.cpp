@@ -22,6 +22,14 @@ ros::Time start_time;
 float sequence_nr=0.00;
 
 
+
+/***
+ * Start the node, First argument to the node is the name of the output file
+ * Play the rosbag you want to extract
+ * Path of output is hardcoded
+ ***/
+
+
 void getRPYFromQuaternionMSG(geometry_msgs::Quaternion orientation, double& roll,double& pitch, double& yaw)
 {
   tf::Quaternion quat;

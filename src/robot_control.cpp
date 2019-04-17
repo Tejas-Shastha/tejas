@@ -4,6 +4,8 @@
 #include <kinova_msgs/PoseVelocity.h>
 #include <kinova_msgs/ArmPoseAction.h>
 #include <kinova_msgs/ArmPoseGoal.h>
+#include <kinova_msgs/ArmJointAnglesAction.h>
+#include <kinova_msgs/ArmJointAnglesGoal.h>
 #include <mutex>
 #include <actionlib/client/simple_action_client.h>
 #include <std_msgs/String.h>
