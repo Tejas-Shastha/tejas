@@ -14,7 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
 	geometry_msgs
 	message_generation
 	tf
+        tf_conversions
         audio_emergency
+        trac_ik_lib
+        orocos_kdl
+        kdl_conversions
 )
 
 
@@ -26,17 +30,21 @@ generate_messages(DEPENDENCIES
   std_msgs
 )
 
-
-
 catkin_package(
 		CATKIN_DEPENDS
-		message_runtime
-		actionlib_msgs
+                    message_runtime
+                    actionlib_msgs
+                    trac_ik_lib
+                DEPENDS
+                    Boost
+                    orocos_kdl
 )
 
 
 include_directories(
 	${catkin_INCLUDE_DIRS}
+        ${Boost_INCLUDE_DIRS}
+        ${orocos_kdl_INCLUDE_DIRS}
 )
 
 
@@ -96,3 +104,9 @@ add_executable(data_extractor_gmm src/data_extractor_gmm.cpp)
 add_dependencies(data_extractor_gmm ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(data_extractor_gmm ${catkin_LIBRARIES})
 
+add_executable(ik_tests src/ik_tests.cpp)
+target_link_libraries(ik_tests
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${orocos_kdl_LIBRARIES}
+)
